@@ -58,19 +58,21 @@ class ScoutCoreTests(unittest.TestCase):
             time.sleep(.02)
         self.assertEqual(core.search("report")["results"], [])
 
-    @unittest.skipUnless(rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK),
-                         "Build the RF2 directory service first")
-    def test_index_uses_native_metadata_and_falls_back_visibly(self):
-        core.start_index("project")
-        for _ in range(100):
-            status = core.index_status()
-            if not status["running"]:
-                break
-            time.sleep(.02)
+    @unittest.skipUnless(rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK)
+                         and core.RF2_INDEX.is_file() and os.access(core.RF2_INDEX, os.X_OK),
+                         "Build the RF2 directory and index services first")
+    def test_native_index_and_missing_worker_fallback(self):
+        with patch.object(core.os, "scandir", side_effect=AssertionError("Python traversal was used")):
+            core.start_index("project")
+            for _ in range(100):
+                status = core.index_status()
+                if not status["running"]:
+                    break
+                time.sleep(.02)
         self.assertIsNone(status["error"])
-        self.assertEqual(status["engine"], "rf2-native-metadata")
+        self.assertEqual(status["engine"], "rf2-native-index-bridge")
         self.assertIsNone(status["engineError"])
-        self.assertEqual(status["lastScan"]["engine"], "rf2-native-metadata")
+        self.assertEqual(status["lastScan"]["engine"], "rf2-native-index-bridge")
         self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
 
         with core._JOB_LOCK:
@@ -79,12 +81,40 @@ class ScoutCoreTests(unittest.TestCase):
                          "ended": None, "error": None, "generation": None,
                          "engine": None, "engineError": None}
         try:
-            self.assertEqual(core.index_status()["lastScan"]["engine"], "rf2-native-metadata")
+            self.assertEqual(core.index_status()["lastScan"]["engine"], "rf2-native-index-bridge")
         finally:
             with core._JOB_LOCK:
                 core._JOB = previous_job
 
-        previous = rf2_native.SERVICE
+        previous_service = rf2_native.SERVICE
+        previous_worker = core.RF2_INDEX
+        try:
+            rf2_native._stop()
+            rf2_native.SERVICE = self.root / "missing-native-service"
+            core.RF2_INDEX = self.root / "missing-native-worker"
+            core.start_index("project")
+            for _ in range(100):
+                status = core.index_status()
+                if not status["running"]:
+                    break
+                time.sleep(.02)
+        finally:
+            rf2_native.SERVICE = previous_service
+            core.RF2_INDEX = previous_worker
+        self.assertIsNone(status["error"])
+        self.assertEqual(status["engine"], "python")
+        self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+
+    @unittest.skipUnless(core.RF2_INDEX.is_file() and os.access(core.RF2_INDEX, os.X_OK),
+                         "Build the native index worker first")
+    def test_native_worker_failure_rolls_back(self):
+        core.start_index("project")
+        for _ in range(100):
+            if not core.index_status()["running"]:
+                break
+            time.sleep(.02)
+        (self.root / "project" / "new-important.txt").write_text("new work")
+        previous_service = rf2_native.SERVICE
         try:
             rf2_native._stop()
             rf2_native.SERVICE = Path("/usr/bin/false")
@@ -95,11 +125,45 @@ class ScoutCoreTests(unittest.TestCase):
                     break
                 time.sleep(.02)
         finally:
-            rf2_native.SERVICE = previous
-        self.assertIsNone(status["error"])
-        self.assertEqual(status["engine"], "python-fallback")
-        self.assertTrue(status["engineError"])
+            rf2_native.SERVICE = previous_service
+        self.assertTrue(status["error"])
+        self.assertEqual(core.search("new-important")["results"], [])
         self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+        self.assertEqual(core.index_status()["lastScan"]["engine"], "rf2-native-index-bridge")
+
+    @unittest.skipUnless(core.RF2_INDEX.is_file() and os.access(core.RF2_INDEX, os.X_OK),
+                         "Build the native index worker first")
+    def test_native_index_matches_python_index_rows(self):
+        (self.root / "project" / "docs" / "café\nnotes.txt").write_text("fixture")
+        (self.root / "project" / ".hidden.txt").write_text("hidden")
+        def rows():
+            db = core.connect()
+            result = [tuple(row) for row in db.execute(
+                "SELECT path,name,parent,kind,bytes,allocated,tree_allocated,modified FROM nodes ORDER BY path")]
+            db.close()
+            return result
+        core.start_index("project")
+        for _ in range(100):
+            status = core.index_status()
+            if not status["running"]:
+                break
+            time.sleep(.02)
+        self.assertIsNone(status["error"])
+        native_rows = rows()
+        old_worker, old_service = core.RF2_INDEX, rf2_native.SERVICE
+        try:
+            core.RF2_INDEX = self.root / "missing-worker"
+            rf2_native.SERVICE = self.root / "missing-service"
+            core.start_index("project")
+            for _ in range(100):
+                status = core.index_status()
+                if not status["running"]:
+                    break
+                time.sleep(.02)
+        finally:
+            core.RF2_INDEX, rf2_native.SERVICE = old_worker, old_service
+        self.assertIsNone(status["error"])
+        self.assertEqual(native_rows, rows())
 
     def test_failed_subtree_scan_keeps_last_index(self):
         core.start_index("project")
@@ -194,6 +258,16 @@ class ScoutCoreTests(unittest.TestCase):
         self.assertEqual(result["engine"], "rf2-native-metadata")
         self.assertEqual(result["total"], 1200)
         self.assertEqual(len(result["entries"]), 20)
+        if core.RF2_INDEX.is_file() and os.access(core.RF2_INDEX, os.X_OK):
+            core.start_index("project/many")
+            for _ in range(100):
+                status = core.index_status()
+                if not status["running"]:
+                    break
+                time.sleep(.02)
+            self.assertIsNone(status["error"])
+            self.assertEqual(status["engine"], "rf2-native-index-bridge")
+            self.assertGreaterEqual(status["seen"], 1201)
 
 
 if __name__ == "__main__":
