@@ -46,6 +46,15 @@ class ScoutCoreTests(unittest.TestCase):
         self.assertTrue(docs["indexedSize"])
         self.assertGreaterEqual(docs["allocated"], 0)
         self.assertNotIn("private test content", str(found))
+        (self.root / "project" / "docs" / "report.txt").unlink()
+        previous_generation = status["generation"]
+        core.start_index("project")
+        for _ in range(100):
+            status = core.index_status()
+            if status["ended"] is not None and not status["running"] and status["generation"] != previous_generation:
+                break
+            time.sleep(.02)
+        self.assertEqual(core.search("report")["results"], [])
 
     def test_mcp_metadata_only(self):
         response = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
