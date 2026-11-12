@@ -61,7 +61,7 @@ fn main(argc, argv)
    set j = j + 1
   end
   do store8(full_path + size, 47)
-  set fd = open(path, 0, 0)
+  set fd = open(path, 1048832, 0)
   if fd >= 9223372036854775808
    do store32(header, 4294967295)
    if write_exact(header, 4) == 0
@@ -91,6 +91,10 @@ fn main(argc, argv)
      end
      do store8(full_path + size + 1 + name_size, 0)
      set rc = syscall6(340, full_path, statbuf, 0, 0, 0, 0)
+     if rc >= 9223372036854775808
+      do close(fd)
+      return 4
+     end
      if rc < 9223372036854775808
       do store8(output + out_size, name_size & 255)
       do store8(output + out_size + 1, (name_size >> 8) & 255)
