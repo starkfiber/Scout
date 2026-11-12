@@ -1,9 +1,9 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#080f19">
+  <meta name="theme-color" content="#edf2f5">
   <title>Scout — Storage Explorer</title>
   <link rel="stylesheet" href="/style.css">
   <script src="/app.js" defer></script>
@@ -14,7 +14,7 @@
     <header class="topbar">
       <div class="identity"><span class="mark" aria-hidden="true"><i></i></span><div><strong>SCOUT</strong><small>STORAGE INTELLIGENCE</small></div></div>
       <nav aria-label="Views"><a class="nav-active" href="#observatory">Observatory</a><a href="#map">Map</a><a href="#explorer">Explorer</a><a href="#activity">Activity</a></nav>
-      <div class="topright"><span class="local"><span></span>THIS MAC · PRIVATE</span><button id="refresh" class="icon-button" title="Refresh current folder" aria-label="Refresh current folder">↻</button></div>
+      <div class="topright"><span class="local"><span></span>THIS MAC · PRIVATE</span><label class="theme-label" for="theme-picker">Theme</label><select id="theme-picker" aria-label="Theme"><option value="light">Light</option><option value="dark">Dark</option></select><button id="refresh" class="icon-button" title="Refresh current folder" aria-label="Refresh current folder">↻</button></div>
     </header>
 
     <main>
