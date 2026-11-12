@@ -3,6 +3,7 @@ import time
 import unittest
 import os
 from pathlib import Path
+from unittest.mock import patch
 
 from scout import core, mcp, rf2_native
 
@@ -57,6 +58,65 @@ class ScoutCoreTests(unittest.TestCase):
             time.sleep(.02)
         self.assertEqual(core.search("report")["results"], [])
 
+    @unittest.skipUnless(rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK),
+                         "Build the RF2 directory service first")
+    def test_index_uses_native_metadata_and_falls_back_visibly(self):
+        core.start_index("project")
+        for _ in range(100):
+            status = core.index_status()
+            if not status["running"]:
+                break
+            time.sleep(.02)
+        self.assertIsNone(status["error"])
+        self.assertEqual(status["engine"], "rf2-native-metadata")
+        self.assertIsNone(status["engineError"])
+        self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+
+        previous = rf2_native.SERVICE
+        try:
+            rf2_native._stop()
+            rf2_native.SERVICE = Path("/usr/bin/false")
+            core.start_index("project")
+            for _ in range(100):
+                status = core.index_status()
+                if not status["running"]:
+                    break
+                time.sleep(.02)
+        finally:
+            rf2_native.SERVICE = previous
+        self.assertIsNone(status["error"])
+        self.assertEqual(status["engine"], "python-fallback")
+        self.assertTrue(status["engineError"])
+        self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+
+    def test_failed_subtree_scan_keeps_last_index(self):
+        core.start_index("project")
+        for _ in range(100):
+            if not core.index_status()["running"]:
+                break
+            time.sleep(.02)
+        self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+        previous = rf2_native.SERVICE
+        real_scandir = os.scandir
+        def fail_docs(path):
+            if Path(path) == self.root / "project" / "docs":
+                raise PermissionError("fixture denied")
+            return real_scandir(path)
+        try:
+            rf2_native._stop()
+            rf2_native.SERVICE = self.root / "missing-service"
+            with patch.object(core.os, "scandir", side_effect=fail_docs):
+                core.start_index("project")
+                for _ in range(100):
+                    status = core.index_status()
+                    if not status["running"]:
+                        break
+                    time.sleep(.02)
+        finally:
+            rf2_native.SERVICE = previous
+        self.assertIn("fixture denied", status["error"])
+        self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+
     def test_mcp_metadata_only(self):
         response = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",
                                "params": {"name": "scout_list", "arguments": {"path": "project"}}})
@@ -102,6 +162,14 @@ class ScoutCoreTests(unittest.TestCase):
         self.assertEqual(result["engine"], "python-fallback")
         self.assertTrue(result["engineError"])
         self.assertIn("docs", [entry["name"] for entry in result["entries"]])
+
+    @unittest.skipUnless(rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK),
+                         "Build the RF2 directory service first")
+    def test_native_service_refuses_symlink_directory(self):
+        link = self.root / "linked-folder"
+        link.symlink_to(self.root / "project", target_is_directory=True)
+        with self.assertRaises(OSError):
+            rf2_native.list_records(link)
 
     @unittest.skipUnless(rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK),
                          "Build the RF2 directory service first")
