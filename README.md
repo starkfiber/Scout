@@ -36,7 +36,7 @@ Press **⌘K** for indexed search. Indexing is opt-in; Scout labels incomplete c
 
 ## RF² status, honestly
 
-Scout's macOS folder browser now uses a **persistent trusted RF² 0.11 ARM64 service** for directory enumeration and file metadata. Build it with `sh rf2/build.sh`; the UI labels listings **RF² native files + metadata**. When unavailable or failing, Scout shows its Python fallback. Python still maintains the SQLite search index and serves the browser/MCP interfaces. RF² Core/MCP has **no filesystem access**; this Scout-specific program is a separate trusted systems-profile build. On one temporary 5,000-file fixture, 12 warm listings measured 27.6 ms median native versus 33.8 ms Python, including sorting and pagination. This is a local result, not a cross-platform or universal speed claim. See [RF² evidence](docs/RF2.md) and the [platform plan](docs/PLATFORMS.md).
+Scout's macOS folder browser now uses a **persistent trusted RF² 0.12 ARM64 service** for directory enumeration and file metadata. Build it with `sh rf2/build.sh`; the UI labels listings **RF² native files + metadata**. When unavailable or failing, Scout shows its Python fallback. Python still maintains the SQLite search index and serves the browser/MCP interfaces. RF² Core/MCP has **no filesystem access**; this Scout-specific program is a separate trusted systems-profile build. On one temporary 5,000-file fixture, 12 warm listings on RF² 0.12 measured 33.9 ms median native versus 39.8 ms Python, including sorting and pagination. This is a local result, not a cross-platform or universal speed claim. See [RF² evidence](docs/RF2.md) and the [platform plan](docs/PLATFORMS.md).
 
 ## Build with us
 
