@@ -30,7 +30,7 @@ Run on fixture trees and an opted-in real directory, recording hardware, item co
 
 ## Product milestones
 
-- **V2 local preview (current):** on-demand explorer, metadata index, search, capacity, combined I/O, Codex open handles, Blender artwork, metadata-only MCP.
+- **V2 local preview (current):** on-demand explorer, metadata index, search, proportional measured-folder map, capacity, combined I/O, Codex open handles, Blender artwork, metadata-only MCP.
 - **Native engine:** persistent RF² enumerator if complete workload measurements justify it; event watcher and transactional index refresh.
 - **Organizer:** verified copy/move/rename with undo, duplicate and clone awareness, archive/restore previews.
 - **Mac app:** signed native shell, permissions onboarding, launch at login option and update flow.
