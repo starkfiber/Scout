@@ -191,6 +191,11 @@ def connect() -> sqlite3.Connection:
         );
         CREATE INDEX IF NOT EXISTS nodes_parent ON nodes(parent);
         CREATE INDEX IF NOT EXISTS nodes_name ON nodes(name COLLATE NOCASE);
+        CREATE TABLE IF NOT EXISTS scan_runs (
+          generation INTEGER PRIMARY KEY, scope TEXT NOT NULL,
+          started INTEGER NOT NULL, ended INTEGER NOT NULL,
+          seen INTEGER NOT NULL, engine TEXT NOT NULL
+        );
         CREATE VIRTUAL TABLE IF NOT EXISTS nodes_fts USING fts5(
           name, path, content='nodes', content_rowid='id');
         CREATE TRIGGER IF NOT EXISTS nodes_ai AFTER INSERT ON nodes BEGIN
@@ -289,6 +294,12 @@ def _index_worker(scope: str, generation: int) -> None:
                        (scope, prefix + "/%", generation))
         else:
             db.execute("DELETE FROM nodes WHERE generation<>?", (generation,))
+        with _JOB_LOCK:
+            scan_engine = _JOB["engine"] or "python"
+            scan_seen = _JOB["seen"]
+            scan_started = _JOB["started"]
+        db.execute("INSERT INTO scan_runs(generation,scope,started,ended,seen,engine) VALUES(?,?,?,?,?,?)",
+                   (generation, scope, scan_started, int(time.time() * 1000), scan_seen, scan_engine))
         db.commit()
     except Exception as exc:
         with _JOB_LOCK:
@@ -325,8 +336,10 @@ def index_status() -> dict:
     try:
         db = connect()
         row = db.execute("SELECT COUNT(*) AS count, COALESCE(SUM(allocated),0) AS bytes FROM nodes").fetchone()
+        last = db.execute("SELECT scope,started,ended,seen,engine FROM scan_runs ORDER BY ended DESC LIMIT 1").fetchone()
         db.close()
-        job.update({"indexed": row["count"], "indexedAllocated": row["bytes"]})
+        job.update({"indexed": row["count"], "indexedAllocated": row["bytes"],
+                    "lastScan": dict(last) if last else None})
     except sqlite3.Error as exc:
         job["error"] = str(exc)
     return job
