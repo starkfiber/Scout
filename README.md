@@ -2,13 +2,13 @@
 
 ### See the weight of your files. Follow the pulse of your drive.
 
-Scout is an experimental, local-first storage explorer for macOS. Its folder listing can run through a compiled RF² 0.11 helper; indexing and metadata still use Python. It combines an immediate folder browser, an opt-in searchable metadata index, a proportional capacity map, and live **device-wide** disk traffic in one view.
+Scout is a local-first file intelligence system for computers, servers, browsers and coding agents. The product spans desktop, CLI and MCP; platform agents provide operating-system access. The **working preview is currently macOS**. It combines a folder browser, searchable metadata index, proportional capacity map and live **device-wide** disk traffic.
 
 ![Scout observatory, capacity map, explorer and activity panels](docs/images/scout-preview.png)
 
 **[Explore the product site](https://starkfiber.my/scout)** · **[Read the V2 design](docs/PRODUCT.md)** · **[See RF² progress](docs/RF2.md)**
 
-> **Preview, not a release.** The website introduces Scout; it cannot silently inspect a visitor's filesystem. This local preview is read-only and has no signed Mac download yet.
+> **Preview, not a release.** The website introduces Scout; it cannot silently inspect a visitor's filesystem. Windows, Linux, Android and iPhone adapters are product targets, not available downloads. The current macOS preview is read-only.
 
 ## Run the local preview
 
@@ -36,10 +36,10 @@ Press **⌘K** for indexed search. Indexing is opt-in; Scout labels incomplete c
 
 ## RF² status, honestly
 
-Scout's folder listing can now use a trusted RF² 0.11 ARM64 subprocess. Build it with `sh rf2/build.sh`; the local UI then labels listings **RF² native**. When that executable is absent or fails, Scout visibly falls back to Python. Python still collects file metadata, maintains the SQLite index and serves the interface. RF² Core/MCP has **no filesystem access**; this Scout-specific compiled program is a separate trusted systems-profile build. A 500-entry warm fixture measured 5.23 ms median for the hybrid native listing versus 2.97 ms for Python, so no speed gain is claimed. See the [RF² engineering record](docs/RF2.md).
+Scout's macOS folder browser now uses a **persistent trusted RF² 0.11 ARM64 service** for directory enumeration and file metadata. Build it with `sh rf2/build.sh`; the UI labels listings **RF² native files + metadata**. When unavailable or failing, Scout shows its Python fallback. Python still maintains the SQLite search index and serves the browser/MCP interfaces. RF² Core/MCP has **no filesystem access**; this Scout-specific program is a separate trusted systems-profile build. On one temporary 5,000-file fixture, 12 warm listings measured 27.6 ms median native versus 33.8 ms Python, including sorting and pagination. This is a local result, not a cross-platform or universal speed claim. See [RF² evidence](docs/RF2.md) and the [platform plan](docs/PLATFORMS.md).
 
 ## Build with us
 
-The next gates are filesystem change tracking, large-tree latency and memory benchmarks, a complete native scanner, recoverable organization actions, and a signed Mac app. See the [product plan](docs/PRODUCT.md) and [verified handover](docs/HANDOVER.md). Issues and contributions are welcome, especially measured performance cases and accessibility review. Please keep personal file paths, indexes, credentials and screenshots out of public issues.
+The next gates are native indexing and change tracking, cross-platform OS adapters, recoverable organization actions, and signed desktop/mobile distributions. See the [product plan](docs/PRODUCT.md) and [verified handover](docs/HANDOVER.md). Issues and contributions are welcome, especially measured performance cases and accessibility review. Please keep personal file paths, indexes, credentials and screenshots out of public issues.
 
 MIT licensed. Scout is distinct from Stark Fiber's existing `/kit/scout` GitHub discovery product.
