@@ -1,0 +1,128 @@
+profile RF2_SYSTEM_A64_V1
+
+fn read_exact(dst, total)
+ let used = 0
+ let amount = 0
+ while used < total
+  set amount = read(0, dst + used, total - used)
+  if (amount == 0) | (amount >= 9223372036854775808)
+   return 0
+  end
+  set used = used + amount
+ end
+ return 1
+end
+
+fn write_exact(src, total)
+ let used = 0
+ let amount = 0
+ while used < total
+  set amount = write(1, src + used, total - used)
+  if (amount == 0) | (amount >= 9223372036854775808)
+   return 0
+  end
+  set used = used + amount
+ end
+ return 1
+end
+
+fn main(argc, argv)
+ if argc != 1
+  return 2
+ end
+ let header = buffer("header", 4)
+ let path = buffer("path", 4097)
+ let entries = buffer("entries", 32768)
+ let output = buffer("output", 131072)
+ let full_path = buffer("full_path", 8192)
+ let statbuf = buffer("statbuf", 144)
+ let base = buffer("base", 8)
+ let size = 0
+ let fd = 0
+ let amount = 0
+ let cursor = 0
+ let record_size = 0
+ let name_size = 0
+ let out_size = 0
+ let j = 0
+ let rc = 0
+ while read_exact(header, 4) != 0
+  set size = load32(header)
+  if (size == 0) | (size > 4095)
+   return 2
+  end
+  if read_exact(path, size) == 0
+   return 2
+  end
+  do store8(path + size, 0)
+  set j = 0
+  while j < size
+   do store8(full_path + j, load8(path + j))
+   set j = j + 1
+  end
+  do store8(full_path + size, 47)
+  set fd = open(path, 0, 0)
+  if fd >= 9223372036854775808
+   do store32(header, 4294967295)
+   if write_exact(header, 4) == 0
+    return 3
+   end
+  else
+   set amount = 1
+   while amount != 0
+    set amount = syscall6(344, fd, entries, 32768, base, 0, 0)
+    if amount >= 9223372036854775808
+     do close(fd)
+     return 4
+    end
+    set cursor = 0
+    set out_size = 0
+    while cursor < amount
+     set record_size = load8(entries + cursor + 16) + load8(entries + cursor + 17) * 256
+     set name_size = load8(entries + cursor + 18) + load8(entries + cursor + 19) * 256
+     if (record_size < 21) | (cursor + record_size > amount) | (name_size > record_size - 21) | (size + name_size + 2 > 8192) | (out_size + 32 + name_size > 131072)
+      do close(fd)
+      return 5
+     end
+     set j = 0
+     while j < name_size
+      do store8(full_path + size + 1 + j, load8(entries + cursor + 21 + j))
+      set j = j + 1
+     end
+     do store8(full_path + size + 1 + name_size, 0)
+     set rc = syscall6(340, full_path, statbuf, 0, 0, 0, 0)
+     if rc < 9223372036854775808
+      do store8(output + out_size, name_size & 255)
+      do store8(output + out_size + 1, (name_size >> 8) & 255)
+      do store8(output + out_size + 2, load8(statbuf + 4))
+      do store8(output + out_size + 3, load8(statbuf + 5))
+      do store64(output + out_size + 4, load64(statbuf + 96))
+      do store64(output + out_size + 12, load64(statbuf + 104))
+      do store64(output + out_size + 20, load64(statbuf + 48))
+      do store32(output + out_size + 28, load64(statbuf + 56))
+      set j = 0
+      while j < name_size
+       do store8(output + out_size + 32 + j, load8(entries + cursor + 21 + j))
+       set j = j + 1
+      end
+      set out_size = out_size + 32 + name_size
+     end
+     set cursor = cursor + record_size
+    end
+    do store32(header, out_size)
+    if write_exact(header, 4) == 0
+     do close(fd)
+     return 3
+    end
+    if out_size > 0
+     if write_exact(output, out_size) == 0
+      do close(fd)
+      return 3
+     end
+    end
+   end
+   do close(fd)
+  end
+ end
+ return 0
+end
