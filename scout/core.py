@@ -9,6 +9,7 @@ import os
 import re
 import sqlite3
 import stat
+import subprocess
 import threading
 import time
 from pathlib import Path
@@ -18,6 +19,7 @@ HOME = Path.home().resolve()
 DATA_DIR = HOME / "Library" / "Application Support" / "Scout"
 DB_PATH = DATA_DIR / "scout.sqlite3"
 MAX_PAGE = 300
+RF2_DIR = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-dir"
 _JOB_LOCK = threading.Lock()
 _SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY: Path | None = None
@@ -69,12 +71,35 @@ def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
     limit = min(max(int(limit), 1), MAX_PAGE)
     offset = max(int(offset), 0)
     entries = []
-    with os.scandir(path) as iterator:
-        for item in iterator:
+    engine = "python"
+    engine_error = None
+    names = None
+    if RF2_DIR.is_file() and os.access(RF2_DIR, os.X_OK):
+        try:
+            result = subprocess.run([str(RF2_DIR), str(path)], capture_output=True,
+                                    timeout=8, check=True)
+            names = [os.fsdecode(name) for name in result.stdout.split(b"\0")
+                     if name and name not in (b".", b"..")]
+            if any(name in (".", "..") or "/" in name or "\x00" in name for name in names):
+                raise ValueError("Invalid native directory entry")
+            engine = "rf2-native"
+        except (OSError, subprocess.SubprocessError, ValueError) as exc:
+            engine_error = str(exc)
+            names = None
+            engine = "python-fallback"
+    if names is not None:
+        for name in names:
             try:
-                entries.append(_entry(Path(item.path), item.stat(follow_symlinks=False)))
+                entries.append(_entry(path / name))
             except (OSError, PermissionError):
                 pass
+    else:
+        with os.scandir(path) as iterator:
+            for item in iterator:
+                try:
+                    entries.append(_entry(Path(item.path), item.stat(follow_symlinks=False)))
+                except (OSError, PermissionError):
+                    pass
     if not hidden:
         entries = [item for item in entries if not item["hidden"]]
     if kind in ("file", "folder", "link"):
@@ -98,6 +123,7 @@ def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
     else:
         entries.sort(key=lambda item: (item["kind"] != "folder", item["name"].casefold()), reverse=descending)
     return {"path": relative(path), "name": path.name, "total": len(entries),
+            "engine": engine, "engineError": engine_error,
             "offset": offset, "limit": limit, "sort": sort_by, "descending": descending,
             "entries": entries[offset:offset + limit]}
 
