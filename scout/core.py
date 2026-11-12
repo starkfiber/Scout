@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 import re
+import select
 import sqlite3
 import stat
 import subprocess
@@ -21,6 +22,7 @@ DATA_DIR = HOME / "Library" / "Application Support" / "Scout"
 DB_PATH = DATA_DIR / "scout.sqlite3"
 MAX_PAGE = 300
 RF2_DIR = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-dir"
+RF2_INDEX = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-index-worker"
 _JOB_LOCK = threading.Lock()
 _SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY: Path | None = None
@@ -312,6 +314,69 @@ def _index_worker(scope: str, generation: int) -> None:
             _JOB["ended"] = int(time.time() * 1000)
 
 
+def _native_index_worker(scope: str, generation: int) -> None:
+    """Supervise the native RF²/SQLite worker; Python never handles scan rows."""
+    proc = None
+    try:
+        root = safe_path(scope)
+        db = connect()
+        db.close()
+        with _JOB_LOCK:
+            _JOB["engine"] = "rf2-native-index-bridge"
+            started = _JOB["started"]
+        proc = subprocess.Popen(
+            [str(RF2_INDEX), str(rf2_native.SERVICE), str(root), scope,
+             str(DB_PATH), str(generation), str(started)],
+            stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE, bufsize=0, close_fds=True)
+        assert proc.stdout and proc.stderr
+        deadline = time.monotonic() + 1800
+        complete = False
+        pending = bytearray()
+        while True:
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Native index exceeded thirty minutes")
+            if select.select([proc.stdout], [], [], .25)[0]:
+                chunk = os.read(proc.stdout.fileno(), 4096)
+                if not chunk:
+                    break
+                pending.extend(chunk)
+                if len(pending) > 65536:
+                    raise ValueError("Native index progress response too large")
+                while b"\n" in pending:
+                    line, _, rest = pending.partition(b"\n")
+                    pending = bytearray(rest)
+                    if not (line.startswith(b"PROGRESS ") or line.startswith(b"DONE ")):
+                        raise ValueError("Invalid native index progress response")
+                    count = int(line.split()[1])
+                    with _JOB_LOCK:
+                        _JOB["seen"] = count
+                    complete = complete or line.startswith(b"DONE ")
+            elif proc.poll() is not None:
+                break
+        code = proc.wait(timeout=2)
+        if code != 0:
+            detail = proc.stderr.read(1200).decode("utf-8", "replace").strip()
+            raise OSError(detail or f"Native index exited {code}")
+        if not complete:
+            raise OSError("Native index exited without completion receipt")
+    except Exception as exc:
+        with _JOB_LOCK:
+            _JOB["error"] = str(exc)
+    finally:
+        if proc is not None:
+            if proc.poll() is None:
+                proc.kill()
+                proc.wait(timeout=2)
+            if proc.stdout:
+                proc.stdout.close()
+            if proc.stderr:
+                proc.stderr.close()
+        with _JOB_LOCK:
+            _JOB["running"] = False
+            _JOB["ended"] = int(time.time() * 1000)
+
+
 def start_index(scope: str) -> dict:
     global _JOB
     path = safe_path(scope)
@@ -325,7 +390,10 @@ def start_index(scope: str) -> dict:
                 "started": int(time.time() * 1000), "ended": None,
                 "error": None, "generation": generation,
                 "engine": None, "engineError": None}
-        worker = threading.Thread(target=_index_worker, args=(relative(path), generation), daemon=True)
+        native_ready = (RF2_INDEX.is_file() and os.access(RF2_INDEX, os.X_OK) and
+                        rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK))
+        worker = threading.Thread(target=_native_index_worker if native_ready else _index_worker,
+                                  args=(relative(path), generation), daemon=True)
         worker.start()
     return index_status()
 
