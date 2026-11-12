@@ -158,13 +158,7 @@ def connect() -> sqlite3.Connection:
     return db
 
 
-def _index_worker(scope: str) -> None:
-    global _JOB
-    generation = int(time.time_ns())
-    with _JOB_LOCK:
-        _JOB = {"running": True, "scope": scope, "seen": 0,
-                "started": int(time.time() * 1000), "ended": None,
-                "error": None, "generation": generation}
+def _index_worker(scope: str, generation: int) -> None:
     db = None
     try:
         root = safe_path(scope)
@@ -238,13 +232,18 @@ def _index_worker(scope: str) -> None:
 
 
 def start_index(scope: str) -> dict:
+    global _JOB
     path = safe_path(scope)
     if not path.is_dir():
         raise ValueError("Select a folder to index")
     with _JOB_LOCK:
         if _JOB["running"]:
             return dict(_JOB)
-        worker = threading.Thread(target=_index_worker, args=(relative(path),), daemon=True)
+        generation = int(time.time_ns())
+        _JOB = {"running": True, "scope": relative(path), "seen": 0,
+                "started": int(time.time() * 1000), "ended": None,
+                "error": None, "generation": generation}
+        worker = threading.Thread(target=_index_worker, args=(relative(path), generation), daemon=True)
         worker.start()
     return index_status()
 

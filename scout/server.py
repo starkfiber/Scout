@@ -131,10 +131,14 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if not self._allowed() or self.headers.get("X-Scout-Session") != SESSION:
             return self._json({"error": "Local session required"}, 403)
-        if int(self.headers.get("Content-Length", "0")) > 4096:
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return self._json({"error": "Invalid request length"}, 400)
+        if length < 0 or length > 4096:
             return self._json({"error": "Request too large"}, 413)
         try:
-            body = json.loads(self.rfile.read(int(self.headers.get("Content-Length", "0"))) or b"{}")
+            body = json.loads(self.rfile.read(length) or b"{}")
             if self.path == "/api/index":
                 return self._json(core.start_index(body.get("path", "")), 202)
             if self.path == "/api/reveal":
