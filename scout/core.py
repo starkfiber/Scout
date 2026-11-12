@@ -13,6 +13,7 @@ import subprocess
 import threading
 import time
 from pathlib import Path
+from . import rf2_native
 
 
 HOME = Path.home().resolve()
@@ -74,7 +75,16 @@ def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
     engine = "python"
     engine_error = None
     names = None
-    if RF2_DIR.is_file() and os.access(RF2_DIR, os.X_OK):
+    native_records = None
+    if rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK):
+        try:
+            native_records = rf2_native.list_records(path)
+            engine = "rf2-native-metadata"
+        except (OSError, TimeoutError, ValueError) as exc:
+            engine_error = str(exc)
+            names = None
+            engine = "python-fallback"
+    elif RF2_DIR.is_file() and os.access(RF2_DIR, os.X_OK):
         try:
             result = subprocess.run([str(RF2_DIR), str(path)], capture_output=True,
                                     timeout=8, check=True)
@@ -87,10 +97,22 @@ def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
             engine_error = str(exc)
             names = None
             engine = "python-fallback"
-    if names is not None:
+    if native_records is not None:
+        for record in native_records:
+            name = record["name"]
+            mode = record["mode"]
+            record_kind = "link" if stat.S_ISLNK(mode) else "folder" if stat.S_ISDIR(mode) else "file"
+            entries.append({"name": name, "path": relative(path / name),
+                            "kind": record_kind,
+                            "bytes": record["bytes"] if record_kind == "file" else None,
+                            "allocated": record["blocks"] * 512 if record_kind == "file" else None,
+                            "modified": record["mtimeSec"] * 1000 + record["mtimeNs"] // 1_000_000,
+                            "hidden": name.startswith(".")})
+    elif names is not None:
         for name in names:
             try:
-                entries.append(_entry(path / name))
+                child = path / name
+                entries.append(_entry(child, os.lstat(child)))
             except (OSError, PermissionError):
                 pass
     else:
