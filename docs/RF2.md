@@ -1,12 +1,18 @@
 # Scout and RiverFlow RF²
 
-## 0.11 check — 12 November 2026
+## Native directory and metadata service — 12 November 2026
+
+`rf2/dir_service.rf2` is a persistent trusted RF² 0.11 macOS ARM64 process. It accepts length-prefixed paths over stdin, calls Darwin `getdirentries64` and `lstat64`, and returns bounded binary records containing names, file mode, logical bytes, allocated blocks and modification time. `scout/rf2_native.py` validates framing and records, then the Scout API applies filtering, sorting, pagination and indexed folder totals. `rf2/build.sh` compiles and signs the helper locally. The UI labels native results and Python fallback explicitly. This is a native **directory and metadata** engine; SQLite indexing, HTTP, MCP, volume capacity and activity collection remain Python.
+
+Six tests pass locally, including Unicode/newline names, symlink boundary, process failure fallback, metadata parity with Python, and a 1,200-entry directory crossing response chunks. On a temporary 5,000-file fixture, 12 warm `list_folder` calls measured 27.629 ms median native (max 34.357 ms) versus 33.835 ms median Python (max 40.905 ms). The run was on one Mac and one filename shape, with warm cache and 120 displayed entries; no universal speed claim follows. A 500-entry fixture had a smaller or variable advantage. Cold scan, energy, deep trees and indexing need separate comparison.
+
+## Historical 0.11 probe checkpoint — 12 November 2026
 
 The installed 0.11 native CLI reports `mcpFilesystemAccess: false`. Its trusted systems compiler rebuilt `rf2/probe.rf2` with `--opt`, signed the executable, and the executable listed the current Scout repository directory with exit code 0. This verifies that the small directory probe still works on 0.11. It does **not** implement Scout's production explorer, metadata index, or MCP file tools. Those remain in Python until a complete RF² scanner is built and measured on the same workload.
 
-The Scout build now emits NUL-separated directory names, so names containing a newline remain unambiguous. Run `sh rf2/build.sh` to compile and sign `rf2/bin/scout-dir` locally. Scout invokes it as a subprocess for one selected directory and performs metadata calls, sorting, pagination and index work in Python. If the executable is absent or fails, the UI labels the Python fallback. This is a hybrid step, not a complete RF² file manager.
+The first Scout helper emitted NUL-separated directory names, so names containing a newline remained unambiguous. `sh rf2/build.sh` still builds `rf2/bin/scout-dir` as a one-shot fallback. The current preferred `scout-dir-service` also returns native metadata; the earlier helper's timing below is retained as a baseline, not the current engine.
 
-On a temporary 500-entry directory, 12 warm `list_folder` calls had median 5.23 ms with the RF² subprocess plus Python metadata, versus 2.97 ms with Python `os.scandir`; maximums were 10.97 and 3.55 ms. This small fixture includes process launch overhead and is not a whole-disk benchmark. The native path currently improves architectural coverage, **not** speed.
+On a temporary 500-entry directory, 12 warm calls of the historical one-shot hybrid had median 5.23 ms versus 2.97 ms for Python; maximums were 10.97 and 3.55 ms. This baseline included repeated process launches and Python metadata calls. It must not be conflated with the current persistent metadata service.
 
 ## What works today
 

@@ -2,7 +2,7 @@
 
 ## Product contract
 
-Scout combines a fast file explorer with a storage observatory and a bounded AI path driver. The explorer is the primary work surface; the M.2 scene gives the product identity and context. The local app must always distinguish measured facts from visual illustration.
+Scout combines a file explorer, storage observatory and bounded AI path driver across local desktop/CLI, browser and coding-agent surfaces. OS adapters supply platform-specific access. The existing M.2 scene is a visual identity for the macOS preview; it never represents literal file placement. See [platform contract](PLATFORMS.md).
 
 1. **Navigate now.** Open an immediate folder listing without a full-disk scan. Keep scrolling, sorting and keyboard navigation responsive while background work runs.
 2. **Search indexed metadata.** Scan only user-selected roots, show coverage, make warm name/path queries fast, and refresh the index after filesystem changes. Do not index file contents by default.
@@ -22,7 +22,7 @@ These repos' performance headlines are author claims; Scout has not independentl
 
 ## Design system
 
-Dark navy instrument surface, cyan live signal, blue allocated space, teal available space, amber caution. The Blender M.2 artwork has a fixed 1600×720 transparent source and compressed WebP delivery. UI text, file rows and activity graphs remain native browser elements for accessibility and responsiveness. The board should never carry real path labels tied to NAND locations. Prefer meaningful, subtle animation and honor reduced-motion settings.
+Light instrument surface by default, with a dark theme picker; cyan live signal, blue allocated space, teal available space, amber caution. The Blender M.2 artwork has a fixed 1600×720 transparent source and compressed WebP delivery. UI text, file rows and activity graphs remain native browser elements for accessibility and responsiveness. The board should never carry real path labels tied to NAND locations. Prefer meaningful, subtle animation and honor reduced-motion settings.
 
 ## Performance gates before a public download
 
@@ -31,7 +31,7 @@ Run on fixture trees and an opted-in real directory, recording hardware, item co
 ## Product milestones
 
 - **V2 local preview (current):** on-demand explorer, metadata index, search, proportional measured-folder map, capacity, combined I/O, Codex open handles, Blender artwork, metadata-only MCP.
-- **Native engine:** persistent RF² enumerator if complete workload measurements justify it; event watcher and transactional index refresh.
+- **Native engine:** persistent RF² directory and metadata service is working on macOS ARM64; native index refresh, change tracking and broader workload measurements are the next gates.
 - **Organizer:** verified copy/move/rename with undo, duplicate and clone awareness, archive/restore previews.
-- **Mac app:** signed native shell, permissions onboarding, launch at login option and update flow.
+- **Platform apps:** signed macOS, Windows and Linux builds, then mobile adapters within Android/iOS file-permission boundaries.
 - **Public site:** `starkfiber.my/scout` with actual screenshots, download, GitHub and contribution links once artifacts exist. It is distinct from existing `/kit/scout` GitHub discovery Scout.
