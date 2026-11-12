@@ -17,6 +17,7 @@ Then open <http://127.0.0.1:8766/>. The local service binds to `127.0.0.1`, not 
 - Instant one-level folder navigation, pagination, filtering, sorting and keyboard search (`⌘K`)
 - On-demand background metadata indexing and full-text path search; coverage is explicitly partial until chosen roots finish
 - Current formatted-volume used/free capacity and sampled total internal-disk throughput
+- Clickable proportional capacity map for measured entries in the current folder, with unmeasured and paginated entries called out
 - On-demand list of Codex open file handles, explicitly distinct from confirmed read/write events
 - File metadata inspector, copy path and reveal in Finder
 - Read-only local MCP tools for AI clients: `scout_list`, `scout_find`, `scout_stat`, `scout_capacity`
