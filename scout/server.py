@@ -117,11 +117,11 @@ class Handler(BaseHTTPRequestHandler):
                 return self._json(codex_handles())
             if parsed.path in ("/", "/index.html"):
                 asset, mime = "index.html", "text/html; charset=utf-8"
-            elif parsed.path in ("/app.js", "/style.css", "/ssd.webp"):
+            elif parsed.path in ("/app.js", "/style.css", "/ssd.webp", "/ssd-base.webp", "/ssd-data.webp"):
                 asset = parsed.path[1:]
                 mime = {"app.js": "text/javascript; charset=utf-8",
                         "style.css": "text/css; charset=utf-8",
-                        "ssd.webp": "image/webp"}[asset]
+                        "ssd.webp": "image/webp", "ssd-base.webp": "image/webp", "ssd-data.webp": "image/webp"}[asset]
             else:
                 return self._json({"error": "Not found"}, 404)
             return self._send((ASSETS / asset).read_bytes(), mime)
