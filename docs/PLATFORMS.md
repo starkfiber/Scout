@@ -4,7 +4,7 @@ Scout is a file intelligence product, not a Mac-only utility. It has three surfa
 
 | Platform | Current state | Required adapter |
 | --- | --- | --- |
-| macOS Apple Silicon | Working local preview; RF² trusted native directory and metadata service, Python index/UI | Native index worker, FSEvents, signed app |
+| macOS Apple Silicon | Working local preview; RF² trusted native directory and metadata service feeds Python-driven index/UI | RF²-owned persistent index, FSEvents, signed app |
 | Linux server/desktop | Design target | RF² Linux ABI/backend or separately identified native adapter, inotify, volume metrics |
 | Windows desktop/server | Design target | RF² Windows backend or separately identified native adapter, USN/ReadDirectoryChangesW, NTFS/ReFS metrics |
 | Android | Design target | App-scoped storage adapter under Android permission model; no unrestricted device-wide promise |

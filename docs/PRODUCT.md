@@ -31,7 +31,7 @@ Run on fixture trees and an opted-in real directory, recording hardware, item co
 ## Product milestones
 
 - **V2 local preview (current):** on-demand explorer, metadata index, search, proportional measured-folder map, capacity, combined I/O, Codex open handles, Blender artwork, metadata-only MCP.
-- **Native engine:** persistent RF² directory and metadata service is working on macOS ARM64; native index refresh, change tracking and broader workload measurements are the next gates.
+- **Native engine:** persistent RF² directory and metadata service is working on macOS ARM64; the current Python index consumes native metadata; RF²-owned persistence, change tracking and broader workload measurements are the next gates.
 - **Organizer:** verified copy/move/rename with undo, duplicate and clone awareness, archive/restore previews.
 - **Platform apps:** signed macOS, Windows and Linux builds, then mobile adapters within Android/iOS file-permission boundaries.
 - **Public site:** `starkfiber.my/scout` with actual screenshots, download, GitHub and contribution links once artifacts exist. It is distinct from existing `/kit/scout` GitHub discovery Scout.
