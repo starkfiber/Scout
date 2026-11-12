@@ -1,5 +1,5 @@
 const $ = id => document.getElementById(id);
-const state = {path:'', items:[], selected:null, offset:0, total:0, sort:'name', desc:false, search:'', session:'', busy:false, wasIndexing:false};
+const state = {path:new URLSearchParams(location.search).get('path')||'', items:[], selected:null, offset:0, total:0, sort:'name', desc:false, search:'', session:'', busy:false, wasIndexing:false};
 const places = [
   ['Home',''], ['Downloads','Downloads'], ['Desktop','Desktop'],
   ['Documents','Documents'], ['Applications','Applications'],
@@ -48,6 +48,7 @@ $('refresh').onclick=()=>{state.search?search():list(true);overview()};
 $('index-button').onclick=async()=>{try{const result=await post('/api/index',{path:state.path});notice(result.running?`Indexing ${result.scope||'Home'} in the background…`:'Index starting…');$('index-button').disabled=true}catch(e){notice(e.message)}};
 $('reveal').onclick=async()=>{if(!state.selected)return;try{await post('/api/reveal',{path:state.selected.path});notice('Revealed in Finder')}catch(e){notice(e.message)}};
 $('copy-path').onclick=async()=>{if(!state.selected)return;try{await navigator.clipboard.writeText(fullPath(state.selected.path));notice('Path copied')}catch(e){notice('Clipboard permission unavailable')}};
+$('explode-control').onclick=()=>{const on=$('board-stage').classList.toggle('exploded');$('explode-control').setAttribute('aria-pressed',String(on));$('explode-control').textContent=on?'↙ Reassemble':'↗ Separate layers'};
 $('handles-button').onclick=async()=>{const box=$('handles-list');box.textContent='Inspecting open handles…';try{const data=await api('/api/handles');box.replaceChildren();if(!data.entries.length){box.innerHTML='<div class="empty">No matching open home files at this instant.</div>';return}for(const row of data.entries){const div=document.createElement('div'),path=document.createElement('span'),proc=document.createElement('span');div.className='handle';path.textContent=row.path;path.title=fullPath(row.path);proc.textContent=row.process;div.append(path,proc);box.append(div)}const small=document.createElement('p');small.className='fine';small.textContent=`Showing ${data.entries.length} of ${data.count} handles at ${new Date(data.at).toLocaleTimeString()}.`;box.prepend(small)}catch(e){box.textContent=e.message}};
 document.addEventListener('keydown',e=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();$('search').focus();$('search').select()}else if(e.key==='Escape'&&document.activeElement===$('search')){$('search').value='';list(true);$('search').blur()}else if(e.key==='Backspace'&&document.activeElement?.tagName!=='INPUT'&&document.activeElement?.tagName!=='TEXTAREA'){e.preventDefault();const parts=state.path.split('/');parts.pop();navigate(parts.join('/'))}});
 

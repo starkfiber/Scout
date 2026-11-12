@@ -109,4 +109,12 @@ scene.render.filepath=str(out/'ssd.png')
 scene.view_settings.view_transform='AgX'
 bpy.ops.wm.save_as_mainfile(filepath=str(out/'scout_ssd.blend'))
 bpy.ops.render.render(write_still=True)
+floating=[o for o in bpy.data.objects if o.type=='MESH' and o.name.startswith('floating')]
+for o in floating:o.hide_render=True
+scene.render.filepath=str(out/'ssd-base.png')
+bpy.ops.render.render(write_still=True)
+for o in bpy.data.objects:
+    if o.type=='MESH':o.hide_render=o not in floating
+scene.render.filepath=str(out/'ssd-data.png')
+bpy.ops.render.render(write_still=True)
 print('SCOUT_ASSET objects',len(bpy.data.objects),'materials',len(bpy.data.materials),'render',scene.render.filepath)
