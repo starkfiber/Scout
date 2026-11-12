@@ -28,7 +28,7 @@ Scout opens one folder at a time immediately. Choose **Index this folder** to bu
 | --- | --- | --- |
 | Open folders, follow breadcrumbs, sort and filter, inspect metadata, copy a path and reveal it in Finder. | See APFS used/free capacity, a clickable map of **measured** folder sizes, and a graph of combined internal-drive I/O. | Run a local, read-only MCP server that lists, finds and inspects path metadata without sending file contents. |
 
-Press **⌘K** for indexed search. Indexing is opt-in; Scout labels incomplete coverage and unmeasured sizes. The map represents logical folder allocation, **not** physical NAND placement. Open Codex file handles are shown on demand; an open handle does not prove an active read or write.
+Press **⌘K** for indexed search. Indexing is opt-in; Scout labels incomplete coverage and unmeasured sizes. A local scan record keeps the last completed scope, time and engine visible after restart. The map represents logical folder allocation, **not** physical NAND placement. Open Codex file handles are shown on demand; an open handle does not prove an active read or write.
 
 ## Browser and privacy boundary
 
