@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+.DS_Store
+.venv/
+*.sqlite3*
+*.log
+assets/ssd.png
+assets/*.blend
+assets/*.blend1
+*.local.json
