@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#080f19">
+  <title>Scout — Storage Explorer</title>
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <a class="skip" href="#explorer">Skip to files</a>
+  <div class="app">
+    <header class="topbar">
+      <div class="identity"><span class="mark" aria-hidden="true"><i></i></span><div><strong>SCOUT</strong><small>STORAGE INTELLIGENCE</small></div></div>
+      <nav aria-label="Views"><a class="nav-active" href="#observatory">Observatory</a><a href="#explorer">Explorer</a><a href="#activity">Activity</a></nav>
+      <div class="topright"><span class="local"><span></span>THIS MAC · PRIVATE</span><button id="refresh" class="icon-button" title="Refresh current folder" aria-label="Refresh current folder">↻</button></div>
+    </header>
+
+    <main>
+      <section id="observatory" class="hero panel" aria-label="Storage observatory">
+        <div class="hero-heading"><span class="overline">01 / THE DRIVE</span><h1>See through<br><em>your storage.</em></h1><p>Find what occupies your Mac. Follow real drive traffic. Explore any file without waiting for a full disk scan.</p><div class="hero-actions"><a href="#explorer" class="action-primary">Explore files <span aria-hidden="true">↗</span></a><span class="fine">Local view · no uploads</span></div></div>
+        <div class="board-stage" id="board-stage"><div class="stage-halo"></div><img src="/ssd.webp" alt="Illustrated exploded M.2 SSD with four data layers" width="1600" height="720"><svg class="board-flow" viewBox="0 0 900 398" aria-hidden="true"><path d="M98 273 C230 233 337 278 460 286 S700 321 830 349"></path></svg><div class="controller-pulse" aria-hidden="true"></div><div class="board-label board-label-top"><span class="signal-dot"></span>INTERNAL SSD / LIVE I/O <strong id="board-rate">— MB/s</strong></div><div class="board-label board-label-bottom">LOGICAL DATA LAYER <b>≠</b> PHYSICAL NAND ADDRESS</div></div>
+        <div class="hero-meter"><div class="meter-label">CAPACITY</div><div class="meter-total" id="total">—</div><div class="meter-line"><div id="used-fill"></div></div><div class="meter-split"><span><b id="used">—</b> USED</span><span><b id="free">—</b> FREE</span></div><div class="meter-note" id="capacity-note">Reading APFS volume…</div></div>
+      </section>
+
+      <section class="stat-strip" aria-label="Live measurements">
+        <div class="stat"><span class="stat-label">DISK TRAFFIC</span><div><strong id="mbps">—</strong><small>MB/s</small></div><span class="stat-foot">Internal SSD · read + write</span></div>
+        <div class="stat"><span class="stat-label">INDEXED PATHS</span><div><strong id="indexed">0</strong></div><span class="stat-foot" id="index-progress">Choose a folder to build the index</span></div>
+        <div class="stat"><span class="stat-label">FREE CAPACITY</span><div><strong id="free-stat">—</strong></div><span class="stat-foot">Current APFS available space</span></div>
+        <div class="stat stat-read"><span class="stat-label">OPERATING MODE</span><div><strong>READ ONLY</strong></div><span class="stat-foot">Reveal in Finder is the only external action</span></div>
+      </section>
+
+      <section id="explorer" class="explorer panel" aria-label="File explorer">
+        <aside class="places"><div class="places-head"><span class="overline">02 / NAVIGATE</span><h2>Places</h2></div><div id="places-list" class="places-list"></div><div class="places-bottom"><span class="fine">AI can reference paths through Scout's local MCP tools. File contents stay on this Mac.</span></div></aside>
+        <div class="browser">
+          <div class="browser-top"><div><span class="overline">FILE EXPLORER</span><div id="breadcrumbs" class="breadcrumbs" aria-label="Current path"></div></div><button id="index-button" class="outline">Index this folder</button></div>
+          <div class="toolbar"><div class="search-wrap"><span aria-hidden="true">⌕</span><input id="search" type="search" autocomplete="off" placeholder="Search indexed files…" aria-label="Search indexed files"><kbd>⌘ K</kbd></div><select id="kind" aria-label="File type"><option value="all">All types</option><option value="folder">Folders</option><option value="file">Files</option></select><label class="hidden-toggle"><input id="hidden" type="checkbox"> Hidden</label></div>
+          <div id="notice" class="notice" role="status">Loading folder…</div>
+          <div class="table-wrap"><table><thead><tr><th><button class="sort" data-sort="name">NAME <span>↕</span></button></th><th><button class="sort" data-sort="size">SIZE <span>↕</span></button></th><th><button class="sort" data-sort="modified">MODIFIED <span>↕</span></button></th></tr></thead><tbody id="files"></tbody></table></div>
+          <div class="browser-footer"><span id="list-status">—</span><button id="more" class="text-button" hidden>Load more ↘</button></div>
+        </div>
+        <aside class="inspector"><div class="inspector-top"><span class="overline">03 / INSPECT</span><h2>Details</h2></div><div class="preview-icon" id="preview-icon">◇</div><h3 id="detail-name">Choose a file</h3><p class="detail-path" id="detail-path">Select an item to see its path and metadata.</p><div class="detail-grid"><div><span>TYPE</span><strong id="detail-kind">—</strong></div><div><span>SIZE</span><strong id="detail-size">—</strong></div><div><span>MODIFIED</span><strong id="detail-time">—</strong></div></div><div class="inspector-actions"><button id="reveal" class="action-primary" disabled>Reveal in Finder ↗</button><button id="copy-path" class="outline" disabled>Copy path</button></div><p class="fine">Folder sizes require indexing. A file's allocated size may differ from its logical length.</p></aside>
+      </section>
+
+      <section id="activity" class="activity-grid">
+        <article class="panel waveform"><div class="section-heading"><div><span class="overline">04 / LIVE SIGNAL</span><h2>Drive activity</h2></div><span class="live-pill"><i></i> SAMPLING</span></div><svg id="chart" viewBox="0 0 900 175" role="img" aria-label="Recent internal SSD throughput"><path class="chart-grid" d="M0 43H900 M0 87H900 M0 131H900"></path><path id="chart-area" class="chart-area"></path><path id="chart-line" class="chart-line"></path></svg><div class="chart-footer"><span>~6 MINUTES AGO</span><span id="chart-peak">PEAK —</span><span>NOW</span></div><p class="fine">Measured with macOS iostat on the internal drive. It reports combined traffic, not per-file reads or writes.</p></article>
+        <article class="panel handles"><div class="section-heading"><div><span class="overline">05 / AI FOOTPRINT</span><h2>Codex open files</h2></div><button id="handles-button" class="outline">Inspect now</button></div><p class="fine">A file being open does not mean Codex is reading or writing it right now.</p><div id="handles-list" class="handles-list"><div class="empty">Inspect on demand to avoid continuous system scans.</div></div></article>
+      </section>
+      <footer><span>SCOUT / LOCAL PREVIEW</span><span>No automatic cleanup. No file contents leave this Mac.</span></footer>
+    </main>
+  </div>
+</body>
+</html>
