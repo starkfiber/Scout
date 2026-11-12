@@ -4,7 +4,7 @@ Scout is a private, local storage explorer and observatory. It opens folders imm
 
 ## Run
 
-On macOS, double-click **Run Scout.command** or from this directory run:
+On this Mac, double-click **Run Scout.command**. A fresh GitHub download may need `chmod +x 'Run Scout.command'` first. You can also run from this directory:
 
 ```sh
 /usr/bin/python3 -m scout
