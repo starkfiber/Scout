@@ -7,7 +7,7 @@
 - The logical capacity map uses measured allocated sizes from the current folder and labels incomplete coverage. A tile opens its folder or selects its file.
 - APFS capacity and combined internal-drive throughput are live measurements. Codex open handles are an on-demand observation. The Blender M.2 image is illustrative.
 - Read-only stdio MCP tools expose bounded path metadata. Filesystem escape and symlink traversal are rejected in tests.
-- Nine `unittest` cases pass. The earlier small-fixture HTTP timings and the newer directory/index timings are separate measurements; neither is a whole-disk or cross-product benchmark.
+- Eleven `unittest` cases pass. The earlier small-fixture HTTP timings and the newer directory/index timings are separate measurements; neither is a whole-disk or cross-product benchmark.
 
 ## Evidence
 
@@ -17,8 +17,8 @@
 
 ## Next work
 
-- Build RF²-owned persistent indexing and compare its full workload with the current hybrid path on cold and warm fixtures.
-- Add filesystem watching, index freshness and explicit coverage states.
+- Add filesystem watching, incremental native index updates, freshness and explicit coverage states.
+- Compare cold disk, deep trees, memory and energy across the RF²/C index worker and Python fallback.
 - Design reviewed, recoverable file operations before any organizer action. Build signed platform distributions only after permissions and recovery testing.
 - Keep the live `starkfiber.my/scout` page distinct from `/kit/scout`; offer a download only when a release artifact exists.
 
@@ -43,3 +43,10 @@ No personal file inventory, backup image, chat content or index belongs in this 
 
 - Completed scans now write a small `scan_runs` record in the local SQLite index transaction. It records scope, time, count and engine; no file contents are stored. A failed subtree scan leaves the previous completed record intact.
 - The preview was restarted after a native scan. Its API reported no active engine and the last completed engine as `rf2-native-metadata`; the browser rendered that last scan and its time. The nine tests pass, including a simulated process-status reset. The refreshed README screenshot shows native index status.
+
+## 14:48 update — native full-scan index
+
+- `native/scout_index.c` is a signed C bridge for SQLite persistence. It drives the trusted RF² directory/metadata service through bounded pipes, traverses the selected tree, writes SQLite/FTS and folder totals in one transaction, and records completion. Python only starts and monitors this worker on the native path; it does not enumerate or write index rows. Missing binaries trigger an explicit Python fallback. A failed native scan rolls back and retains the last index.
+- Eleven tests pass, including field-by-field native/Python index parity, a 1,200-file directory, a worker failure rollback, and an assertion that normal native indexing never calls Python `os.scandir`. The live local preview reported `rf2-native-index-bridge` with no error and returned indexed search results.
+- Three warm scans of a 40-folder, 5,000-file temporary fixture measured 75.65 ms median native versus 179.24 ms Python. Three warm scans of a 100-folder, 20,000-file fixture measured 261.13 ms versus 745.76 ms. Native runs came first in each matched pair, then Python. These are one-Mac, warm-fixture measurements; no cold-disk, energy, deep-tree or other-platform result follows.
+- Next: native incremental updates from supported OS events, cold/warm benchmarks on opted-in real trees, and cross-platform adapters. Python still serves HTTP/MCP and has the explicit fallback path. RF² itself supplies native metadata; traversal and SQLite persistence are C, not RF² language code.
