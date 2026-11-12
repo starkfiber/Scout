@@ -1,6 +1,7 @@
 import tempfile
 import time
 import unittest
+import os
 from pathlib import Path
 
 from scout import core, mcp
@@ -62,6 +63,22 @@ class ScoutCoreTests(unittest.TestCase):
         self.assertFalse(response["result"]["isError"])
         self.assertNotIn("private test content", str(response))
         self.assertEqual(mcp.handle({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})["result"]["tools"][0]["name"], "scout_list")
+
+    @unittest.skipUnless(core.RF2_DIR.is_file() and os.access(core.RF2_DIR, os.X_OK),
+                         "Build the RF2 directory helper first")
+    def test_native_listing_matches_python_for_unusual_names(self):
+        (self.root / "project" / "line\nbreak.txt").touch()
+        (self.root / "project" / "café.txt").touch()
+        native = core.list_folder("project", hidden=True)
+        self.assertEqual(native["engine"], "rf2-native")
+        native_names = [item["name"] for item in native["entries"]]
+        previous = core.RF2_DIR
+        try:
+            core.RF2_DIR = self.root / "missing-native-program"
+            python = core.list_folder("project", hidden=True)
+        finally:
+            core.RF2_DIR = previous
+        self.assertEqual(native_names, [item["name"] for item in python["entries"]])
 
 
 if __name__ == "__main__":
