@@ -64,7 +64,7 @@ async function overview(){
     $('capacity-note').textContent='APFS volume · '+Math.round(100*cap.used/cap.total)+'% occupied';
     $('indexed').textContent=data.index.indexed.toLocaleString();
     const engine=data.index.engine||data.index.lastScan?.engine;
-    const engineName=engine==='rf2-native-metadata'?'RF² native metadata':engine==='python-fallback'?'Python fallback':engine==='python'?'Python metadata':'engine unrecorded';
+    const engineName=engine==='rf2-native-index-bridge'?'RF² native index':engine==='rf2-native-metadata'?'RF² native metadata':engine==='python-fallback'?'Python fallback':engine==='python'?'Python metadata':'engine unrecorded';
     const last=data.index.lastScan?` · last scan ${new Date(data.index.lastScan.ended).toLocaleString()}`:'';
     $('index-progress').textContent=data.index.running?`Scanning ${data.index.scope||'Home'} · ${data.index.seen.toLocaleString()} seen · ${engineName}`:data.index.error?'Index issue: '+data.index.error:data.index.indexed?`Local metadata index · ${engineName}${last} · coverage partial`:'Choose a folder to build the index';
     $('index-progress').title=data.index.engineError||'';
