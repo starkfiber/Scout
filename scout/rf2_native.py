@@ -10,14 +10,13 @@ import time
 from pathlib import Path
 
 SERVICE = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-dir-service"
-_LOCK = threading.Lock()
-_PROC: subprocess.Popen | None = None
+_LOCKS = {"interactive": threading.Lock(), "index": threading.Lock()}
+_PROCS: dict[str, subprocess.Popen] = {}
 _MAX_BYTES = 64 * 1024 * 1024
 
 
-def _stop() -> None:
-    global _PROC
-    proc, _PROC = _PROC, None
+def _stop_one(purpose: str) -> None:
+    proc = _PROCS.pop(purpose, None)
     if proc is not None and proc.poll() is None:
         proc.terminate()
         try:
@@ -30,6 +29,12 @@ def _stop() -> None:
             proc.stdin.close()
         if proc.stdout:
             proc.stdout.close()
+
+
+def _stop() -> None:
+    for purpose in tuple(_PROCS):
+        with _LOCKS[purpose]:
+            _stop_one(purpose)
 
 
 atexit.register(_stop)
@@ -80,33 +85,36 @@ def _parse(chunk: bytes) -> list[dict]:
     return records
 
 
-def list_records(path: Path) -> list[dict]:
-    """Enumerate one directory with metadata through one reusable RF² process."""
-    global _PROC
+def list_records(path: Path, purpose: str = "interactive") -> list[dict]:
+    """Enumerate a directory; UI and background index use separate RF² processes."""
+    if purpose not in _LOCKS:
+        raise ValueError("Invalid RF² client purpose")
     raw = os.fsencode(path)
     if not raw or len(raw) > 4095 or b"\x00" in raw:
         raise ValueError("Invalid RF² directory path")
-    with _LOCK:
+    with _LOCKS[purpose]:
         try:
-            if _PROC is None or _PROC.poll() is not None:
-                _PROC = subprocess.Popen([str(SERVICE)], stdin=subprocess.PIPE,
+            proc = _PROCS.get(purpose)
+            if proc is None or proc.poll() is not None:
+                proc = subprocess.Popen([str(SERVICE)], stdin=subprocess.PIPE,
                                          stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
                                          bufsize=0, close_fds=True)
-            assert _PROC.stdin and _PROC.stdout
-            _write_exact(_PROC.stdin.fileno(), len(raw).to_bytes(4, "little") + raw)
+                _PROCS[purpose] = proc
+            assert proc.stdin and proc.stdout
+            _write_exact(proc.stdin.fileno(), len(raw).to_bytes(4, "little") + raw)
             deadline = time.monotonic() + 8
             output = []
             total = 0
             while True:
-                size = int.from_bytes(_read_exact(_PROC.stdout.fileno(), 4, deadline), "little")
+                size = int.from_bytes(_read_exact(proc.stdout.fileno(), 4, deadline), "little")
                 if size == 0:
                     return output
                 if size == 0xFFFFFFFF:
                     raise OSError("RF² could not open directory")
                 if size > 131072 or total + size > _MAX_BYTES:
                     raise ValueError("RF² directory response exceeds limit")
-                output.extend(_parse(_read_exact(_PROC.stdout.fileno(), size, deadline)))
+                output.extend(_parse(_read_exact(proc.stdout.fileno(), size, deadline)))
                 total += size
         except Exception:
-            _stop()
+            _stop_one(purpose)
             raise

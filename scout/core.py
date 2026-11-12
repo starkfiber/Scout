@@ -25,7 +25,8 @@ _JOB_LOCK = threading.Lock()
 _SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY: Path | None = None
 _JOB = {"running": False, "scope": None, "seen": 0, "started": None,
-        "ended": None, "error": None, "generation": None}
+        "ended": None, "error": None, "generation": None,
+        "engine": None, "engineError": None}
 
 
 def safe_path(raw: str) -> Path:
@@ -61,6 +62,17 @@ def _entry(path: Path, st: os.stat_result | None = None) -> dict:
             "allocated": st.st_blocks * 512 if kind == "file" else None,
             "modified": st.st_mtime_ns // 1_000_000,
             "hidden": path.name.startswith(".")}
+
+
+def _native_entry(parent: Path, record: dict) -> dict:
+    name = record["name"]
+    mode = record["mode"]
+    kind = "link" if stat.S_ISLNK(mode) else "folder" if stat.S_ISDIR(mode) else "file"
+    return {"name": name, "path": relative(parent / name), "kind": kind,
+            "bytes": record["bytes"] if kind == "file" else None,
+            "allocated": record["blocks"] * 512 if kind == "file" else None,
+            "modified": record["mtimeSec"] * 1000 + record["mtimeNs"] // 1_000_000,
+            "hidden": name.startswith(".")}
 
 
 def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
@@ -99,15 +111,7 @@ def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
             engine = "python-fallback"
     if native_records is not None:
         for record in native_records:
-            name = record["name"]
-            mode = record["mode"]
-            record_kind = "link" if stat.S_ISLNK(mode) else "folder" if stat.S_ISDIR(mode) else "file"
-            entries.append({"name": name, "path": relative(path / name),
-                            "kind": record_kind,
-                            "bytes": record["bytes"] if record_kind == "file" else None,
-                            "allocated": record["blocks"] * 512 if record_kind == "file" else None,
-                            "modified": record["mtimeSec"] * 1000 + record["mtimeNs"] // 1_000_000,
-                            "hidden": name.startswith(".")})
+            entries.append(_native_entry(path, record))
     elif names is not None:
         for name in names:
             try:
@@ -216,6 +220,9 @@ def _index_worker(scope: str, generation: int) -> None:
         stack = [root]
         batch = []
         totals = {}
+        native_enabled = rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK)
+        with _JOB_LOCK:
+            _JOB["engine"] = "rf2-native-metadata" if native_enabled else "python"
         root_item = _entry(root)
         db.execute("""INSERT INTO nodes(path,name,parent,kind,bytes,allocated,tree_allocated,modified,generation)
             VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET generation=excluded.generation""",
@@ -224,16 +231,31 @@ def _index_worker(scope: str, generation: int) -> None:
         db.commit()
         while stack:
             folder = stack.pop()
+            if folder.is_symlink():
+                raise OSError("Folder became a symbolic link during indexing")
             try:
-                with os.scandir(folder) as iterator:
-                    children = list(iterator)
-            except (OSError, PermissionError):
-                continue
-            for child in children:
+                if native_enabled:
+                    try:
+                        children = [_native_entry(folder, record) for record in
+                                    rf2_native.list_records(folder, purpose="index")]
+                    except (OSError, TimeoutError, ValueError) as exc:
+                        native_enabled = False
+                        with _JOB_LOCK:
+                            _JOB["engine"] = "python-fallback"
+                            _JOB["engineError"] = str(exc)
+                if not native_enabled:
+                    with os.scandir(folder) as iterator:
+                        children = []
+                        for child in iterator:
+                            try:
+                                children.append(_entry(Path(child.path), child.stat(follow_symlinks=False)))
+                            except FileNotFoundError:
+                                continue
+            except (OSError, PermissionError) as exc:
+                raise OSError(f"Index stopped at {relative(folder)}: {exc}") from exc
+            for item in children:
                 try:
-                    st = child.stat(follow_symlinks=False)
-                    p = Path(child.path)
-                    item = _entry(p, st)
+                    p = folder / item["name"]
                     batch.append((item["path"], item["name"], relative(folder),
                                   item["kind"], item["bytes"], item["allocated"], None,
                                   item["modified"], generation))
@@ -290,7 +312,8 @@ def start_index(scope: str) -> dict:
         generation = int(time.time_ns())
         _JOB = {"running": True, "scope": relative(path), "seen": 0,
                 "started": int(time.time() * 1000), "ended": None,
-                "error": None, "generation": generation}
+                "error": None, "generation": generation,
+                "engine": None, "engineError": None}
         worker = threading.Thread(target=_index_worker, args=(relative(path), generation), daemon=True)
         worker.start()
     return index_status()
