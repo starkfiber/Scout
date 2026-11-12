@@ -70,7 +70,19 @@ class ScoutCoreTests(unittest.TestCase):
         self.assertIsNone(status["error"])
         self.assertEqual(status["engine"], "rf2-native-metadata")
         self.assertIsNone(status["engineError"])
+        self.assertEqual(status["lastScan"]["engine"], "rf2-native-metadata")
         self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+
+        with core._JOB_LOCK:
+            previous_job = core._JOB
+            core._JOB = {"running": False, "scope": None, "seen": 0, "started": None,
+                         "ended": None, "error": None, "generation": None,
+                         "engine": None, "engineError": None}
+        try:
+            self.assertEqual(core.index_status()["lastScan"]["engine"], "rf2-native-metadata")
+        finally:
+            with core._JOB_LOCK:
+                core._JOB = previous_job
 
         previous = rf2_native.SERVICE
         try:
