@@ -1,5 +1,9 @@
 # Scout and RiverFlow RF²
 
+## 0.11 check — 12 November 2026
+
+The installed 0.11 native CLI reports `mcpFilesystemAccess: false`. Its trusted systems compiler rebuilt `rf2/probe.rf2` with `--opt`, signed the executable, and the executable listed the current Scout repository directory with exit code 0. This verifies that the small directory probe still works on 0.11. It does **not** implement Scout's production explorer, metadata index, or MCP file tools. Those remain in Python until a complete RF² scanner is built and measured on the same workload.
+
 ## What works today
 
 RiverFlow 0.10 has two distinct execution profiles. Bounded Core can only read a supplied array. Its existing nine MCP tools do **not** accept file paths or scan a filesystem. The trusted `RF2_SYSTEM_A64_V1` profile can compile native ARM64 programs that use Darwin OS calls, but that source is accepted only by the local compiler, never by the bounded MCP checker.
