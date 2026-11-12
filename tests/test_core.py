@@ -80,6 +80,17 @@ class ScoutCoreTests(unittest.TestCase):
             core.RF2_DIR = previous
         self.assertEqual(native_names, [item["name"] for item in python["entries"]])
 
+    def test_native_failure_uses_visible_fallback(self):
+        previous = core.RF2_DIR
+        try:
+            core.RF2_DIR = Path("/usr/bin/false")
+            result = core.list_folder("project")
+        finally:
+            core.RF2_DIR = previous
+        self.assertEqual(result["engine"], "python-fallback")
+        self.assertTrue(result["engineError"])
+        self.assertIn("docs", [entry["name"] for entry in result["entries"]])
+
 
 if __name__ == "__main__":
     unittest.main()
