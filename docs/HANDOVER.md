@@ -38,3 +38,8 @@ No personal file inventory, backup image, chat content or index belongs in this 
 - The index status exposes its engine and fallback error. A native process failure falls back to Python and completes. A denied subtree stops the scan before stale rows are pruned; the last indexed entries remain searchable. Nine tests pass, including both paths.
 - A temporary 40-folder, 5,000-file warm index fixture took 170.76 ms median with native metadata and 180.22 ms with Python metadata across three runs each. The fixture does not measure cold disk, very deep trees or battery use. The restarted local preview indexed the Scout repository through `rf2-native-metadata` with no engine error. Its private index remains outside Git.
 - Next: RF²-owned persistent index format and incremental watcher updates, with matching cold/warm measurements and recovery tests. Keep user indexes and path inventories out of Git and the public site.
+
+## 14:17 update — completed scan continuity
+
+- Completed scans now write a small `scan_runs` record in the local SQLite index transaction. It records scope, time, count and engine; no file contents are stored. A failed subtree scan leaves the previous completed record intact.
+- The preview was restarted after a native scan. Its API reported no active engine and the last completed engine as `rf2-native-metadata`; the browser rendered that last scan and its time. The nine tests pass, including a simulated process-status reset. The refreshed README screenshot shows native index status.
