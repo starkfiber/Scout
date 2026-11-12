@@ -7,4 +7,5 @@ __pycache__/
 assets/ssd.png
 assets/*.blend
 assets/*.blend1
+rf2/bin/
 *.local.json

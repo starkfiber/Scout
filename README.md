@@ -36,7 +36,7 @@ Press **⌘K** for indexed search. Indexing is opt-in; Scout labels incomplete c
 
 ## RF² status, honestly
 
-RiverFlow **0.11** can compile a trusted native ARM64 directory-enumeration probe in [`rf2/probe.rf2`](rf2/probe.rf2). Its bounded MCP/Core profile has **no filesystem access**. Scout's current working explorer and SQLite index use Python `os.scandir`; there is no production RF² filesystem engine or proven speed gain yet. The [RF² engineering record](docs/RF2.md) explains the exact boundary and the benchmark needed before replacing the engine.
+Scout's folder listing can now use a trusted RF² 0.11 ARM64 subprocess. Build it with `sh rf2/build.sh`; the local UI then labels listings **RF² native**. When that executable is absent or fails, Scout visibly falls back to Python. Python still collects file metadata, maintains the SQLite index and serves the interface. RF² Core/MCP has **no filesystem access**; this Scout-specific compiled program is a separate trusted systems-profile build. A 500-entry warm fixture measured 5.23 ms median for the hybrid native listing versus 2.97 ms for Python, so no speed gain is claimed. See the [RF² engineering record](docs/RF2.md).
 
 ## Build with us
 
