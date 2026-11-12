@@ -1,0 +1,51 @@
+profile RF2_SYSTEM_A64_V1
+fn fail(message)
+ do write(2, message, length(message))
+ do write(2, "\n", 1)
+ return 1
+end
+fn length(value)
+ let n = 0
+ while load8(value + n) != 0
+  set n = n + 1
+ end
+ return n
+end
+fn main(argc, argv)
+ if argc != 2
+  return fail("Usage: scout-rf2-probe directory")
+ end
+ let fd = open(load64(argv + 8), 0, 0)
+ if fd >= 9223372036854775808
+  return fail("Cannot open directory")
+ end
+ let entries = buffer("entries", 32768)
+ let base = buffer("base", 8)
+ let n = 1
+ let i = 0
+ let size = 0
+ let name_size = 0
+ while n != 0
+  set n = syscall6(344, fd, entries, 32768, base, 0, 0)
+  if n >= 9223372036854775808
+   do close(fd)
+   return fail("Cannot read directory")
+  end
+  set i = 0
+  while i < n
+   set size = load8(entries + i + 16) + load8(entries + i + 17) * 256
+   set name_size = load8(entries + i + 18) + load8(entries + i + 19) * 256
+   if (size < 21) | (i + size > n) | (name_size > size - 21)
+    do close(fd)
+    return fail("Invalid directory entry")
+   end
+   if name_size > 0
+    do write(1, entries + i + 21, name_size)
+    do write(1, "\n", 1)
+   end
+   set i = i + size
+  end
+ end
+ do close(fd)
+ return 0
+end
