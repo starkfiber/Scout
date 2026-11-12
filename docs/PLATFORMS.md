@@ -12,4 +12,4 @@ Scout is a file intelligence product, not a Mac-only utility. It has three surfa
 | Browser | Live public design preview | User-selected folder picker for bounded local mode; no automatic whole-device scan |
 | Coding agents | Working local metadata-only MCP server on macOS preview | Platform-neutral protocol over each local adapter, explicit roots and freshness |
 
-The RF² 0.11 compiler currently targets macOS ARM64. Its bounded Core/MCP has no filesystem effects. The Scout-specific trusted RF² systems program is the current native OS adapter experiment; it must not be called a portable RF² runtime. Cross-platform claims require built, tested binaries on each target.
+The RF² 0.12 compiler currently targets macOS ARM64. Its bounded Core/MCP has no filesystem effects. The Scout-specific trusted RF² systems program is the current native OS adapter experiment; it must not be called a portable RF² runtime. Cross-platform claims require built, tested binaries on each target.
