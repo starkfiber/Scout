@@ -4,11 +4,15 @@
 
 The installed 0.11 native CLI reports `mcpFilesystemAccess: false`. Its trusted systems compiler rebuilt `rf2/probe.rf2` with `--opt`, signed the executable, and the executable listed the current Scout repository directory with exit code 0. This verifies that the small directory probe still works on 0.11. It does **not** implement Scout's production explorer, metadata index, or MCP file tools. Those remain in Python until a complete RF² scanner is built and measured on the same workload.
 
+The Scout build now emits NUL-separated directory names, so names containing a newline remain unambiguous. Run `sh rf2/build.sh` to compile and sign `rf2/bin/scout-dir` locally. Scout invokes it as a subprocess for one selected directory and performs metadata calls, sorting, pagination and index work in Python. If the executable is absent or fails, the UI labels the Python fallback. This is a hybrid step, not a complete RF² file manager.
+
+On a temporary 500-entry directory, 12 warm `list_folder` calls had median 5.23 ms with the RF² subprocess plus Python metadata, versus 2.97 ms with Python `os.scandir`; maximums were 10.97 and 3.55 ms. This small fixture includes process launch overhead and is not a whole-disk benchmark. The native path currently improves architectural coverage, **not** speed.
+
 ## What works today
 
 RiverFlow 0.10 has two distinct execution profiles. Bounded Core can only read a supplied array. Its existing nine MCP tools do **not** accept file paths or scan a filesystem. The trusted `RF2_SYSTEM_A64_V1` profile can compile native ARM64 programs that use Darwin OS calls, but that source is accepted only by the local compiler, never by the bounded MCP checker.
 
-The minimal [probe](../rf2/probe.rf2) is an executed proof that a trusted RF² program can enumerate one explicitly named directory on this Mac. It calls Darwin `getdirentries64` (system call 344), parses the returned directory records, and prints entry names. It does not follow subdirectories, collect file sizes, write an index, watch changes, or provide MCP tools. It must not be treated as a production scanner or a security boundary.
+The minimal [probe](../rf2/probe.rf2) is an executed proof that a trusted RF² program can enumerate one explicitly named directory on this Mac. It calls Darwin `getdirentries64` (system call 344), parses the returned directory records, and emits NUL-separated entry names. It does not follow subdirectories, collect file sizes, write an index, watch changes, or provide MCP tools. It must not be treated as a production scanner or a security boundary.
 
 ### Build and verification
 
