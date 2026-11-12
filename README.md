@@ -1,8 +1,8 @@
-# Scout
+# Scout by SFE
 
 ### See the weight of your files. Follow the pulse of your drive.
 
-Scout is an experimental, local-first storage explorer for macOS. It combines a fast folder browser, an opt-in searchable metadata index, a proportional capacity map, and live **device-wide** disk traffic in one view.
+Scout is an experimental, local-first storage explorer for macOS. Its folder listing can run through a compiled RF² 0.11 helper; indexing and metadata still use Python. It combines an immediate folder browser, an opt-in searchable metadata index, a proportional capacity map, and live **device-wide** disk traffic in one view.
 
 ![Scout observatory, capacity map, explorer and activity panels](docs/images/scout-preview.png)
 
