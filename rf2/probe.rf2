@@ -21,6 +21,8 @@ fn main(argc, argv)
  end
  let entries = buffer("entries", 32768)
  let base = buffer("base", 8)
+ let sep = buffer("sep", 1)
+ do store8(sep, 0)
  let n = 1
  let i = 0
  let size = 0
@@ -41,7 +43,7 @@ fn main(argc, argv)
    end
    if name_size > 0
     do write(1, entries + i + 21, name_size)
-    do write(1, "\n", 1)
+    do write(1, sep, 1)
    end
    set i = i + size
   end
