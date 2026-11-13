@@ -20,7 +20,7 @@
 - Add filesystem watching, incremental native index updates, freshness and explicit coverage states.
 - Compare cold disk, deep trees, memory and energy across the RF²/C index worker and Python fallback.
 - Design reviewed, recoverable file operations before any organizer action. Build signed platform distributions only after permissions and recovery testing.
-- Keep the live `starkfiber.my/scout` page distinct from `/kit/scout`; offer a download only when a release artifact exists.
+- Keep the live `starkfiber.my/scout` file product distinct from Kit Radar at `/kit/radar` (`/kit/scout` compatibility link); offer a download only when a release artifact exists.
 
 No personal file inventory, backup image, chat content or index belongs in this repository or the public site.
 

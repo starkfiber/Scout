@@ -34,4 +34,4 @@ Run on fixture trees and an opted-in real directory, recording hardware, item co
 - **Native engine:** persistent RF² directory and metadata service plus a C SQLite index bridge are working on macOS ARM64; change tracking, incremental refresh and broader workload measurements are the next gates.
 - **Organizer:** verified copy/move/rename with undo, duplicate and clone awareness, archive/restore previews.
 - **Platform apps:** signed macOS, Windows and Linux builds, then mobile adapters within Android/iOS file-permission boundaries.
-- **Public site:** `starkfiber.my/scout` with actual screenshots, download, GitHub and contribution links once artifacts exist. It is distinct from existing `/kit/scout` GitHub discovery Scout.
+- **Public site:** `starkfiber.my/scout` with actual screenshots, download, GitHub and contribution links once artifacts exist. The separate Kit Radar discovery product uses `/kit/radar`; `/kit/scout` remains a compatibility link.
