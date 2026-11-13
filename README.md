@@ -45,4 +45,4 @@ Scout's macOS folder browser now uses a **persistent trusted RF² 0.12 ARM64 ser
 
 The next gates are filesystem change tracking and incremental index updates, cross-platform OS adapters, recoverable organization actions, and signed desktop/mobile distributions. See the [product plan](docs/PRODUCT.md) and [verified handover](docs/HANDOVER.md). Issues and contributions are welcome, especially measured performance cases and accessibility review. Please keep personal file paths, indexes, credentials and screenshots out of public issues.
 
-MIT licensed. Scout is distinct from Stark Fiber's existing `/kit/scout` GitHub discovery product.
+MIT licensed. Scout is the file and storage product. Stark Fiber's separate [Kit Radar](https://starkfiber.my/kit/radar) discovers public AI tools and repositories; its former `/kit/scout` address remains a compatibility link.
