@@ -6,6 +6,7 @@ metadata and paths only; it never returns file contents or mutates files.
 from __future__ import annotations
 
 import json
+import sqlite3
 import sys
 
 from . import core
@@ -58,9 +59,11 @@ def handle(message: dict) -> dict | None:
         elif method == "tools/list":
             result = {"tools": TOOLS}
         elif method == "tools/call":
-            params = message.get("params") or {}
+            params = message.get("params")
+            if not isinstance(params, dict):
+                raise ValueError("Tool parameters must be an object")
             name = params.get("name")
-            args = params.get("arguments") or {}
+            args = params.get("arguments", {})
             if not isinstance(args, dict):
                 raise ValueError("Tool arguments must be an object")
             data = dispatch(name, args)
@@ -69,15 +72,19 @@ def handle(message: dict) -> dict | None:
         else:
             return {**base, "error": {"code": -32601, "message": "Method not found"}}
         return {**base, "result": result}
-    except (ValueError, KeyError, OSError, TypeError) as exc:
+    except (ValueError, KeyError, OSError, TypeError, sqlite3.Error) as exc:
         if method == "tools/call":
             return {**base, "result": {"content": [{"type": "text", "text": str(exc)}], "isError": True}}
         return {**base, "error": {"code": -32602, "message": str(exc)}}
 
 
 def main() -> None:
-    for raw in sys.stdin.buffer:
-        if len(raw) > 1_048_576:
+    max_frame = 1_048_576
+    stream = sys.stdin.buffer
+    while raw := stream.readline(max_frame + 1):
+        if len(raw) > max_frame:
+            while raw and not raw.endswith(b"\n"):
+                raw = stream.readline(max_frame + 1)
             continue
         try:
             message = json.loads(raw)

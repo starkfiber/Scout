@@ -15,11 +15,21 @@ Scout is a local-first file intelligence system for computers, servers, browsers
 On macOS, download this repository and run:
 
 ```sh
-sh rf2/build.sh  # native index: requires the local RF² 0.12 compiler and Apple clang
+sh rf2/build.sh  # optional native index: compatible local RF² compiler and Apple clang
 /usr/bin/python3 -m scout
 ```
 
 Without the native build, the source preview reports its Python fallback. The local HTTP/MCP control plane still runs in Python.
+
+Set `SCOUT_RF2_ROOT` to the directory of a compatible compiler if it differs from the
+default. The development bundle 0.36 was verified on Apple Silicon. For isolated tests,
+set `SCOUT_RF2_BIN` to the same disposable output directory when building and running.
+Run `python3 -m unittest discover -s tests -v` to exercise the fallback and, when the
+helpers are available, the native path.
+
+A scan publishes its metadata only after it completes. Scoped rescans refresh that
+scope's totals and mark an older parent total as unmeasured until that parent is scanned
+again. Browsing paths continues during a scan using the last committed index.
 
 Open **http://127.0.0.1:8766/**. The service listens on your Mac's loopback interface. `Run Scout.command` is an alternative on this Mac; a GitHub ZIP may require `chmod +x 'Run Scout.command'` before double-clicking it.
 
