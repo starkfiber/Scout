@@ -21,8 +21,8 @@ HOME = Path.home().resolve()
 DATA_DIR = HOME / "Library" / "Application Support" / "Scout"
 DB_PATH = DATA_DIR / "scout.sqlite3"
 MAX_PAGE = 300
-RF2_DIR = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-dir"
-RF2_INDEX = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-index-worker"
+RF2_DIR = rf2_native.BIN_DIR / "scout-dir"
+RF2_INDEX = rf2_native.BIN_DIR / "scout-index-worker"
 _JOB_LOCK = threading.Lock()
 _SCHEMA_LOCK = threading.Lock()
 _SCHEMA_READY: Path | None = None
@@ -144,12 +144,13 @@ def list_folder(raw: str = "", offset: int = 0, limit: int = 120,
     except sqlite3.Error:
         pass
     if sort_by == "size":
-        entries.sort(key=lambda item: item["allocated"] if item["allocated"] is not None else -1,
-                     reverse=descending)
+        entries.sort(key=lambda item: (item["allocated"] if item["allocated"] is not None else -1,
+                                       item["name"]), reverse=descending)
     elif sort_by == "modified":
-        entries.sort(key=lambda item: item["modified"], reverse=descending)
+        entries.sort(key=lambda item: (item["modified"], item["name"]), reverse=descending)
     else:
-        entries.sort(key=lambda item: (item["kind"] != "folder", item["name"].casefold()), reverse=descending)
+        entries.sort(key=lambda item: (item["kind"] != "folder", item["name"].casefold(),
+                                       item["name"]), reverse=descending)
     return {"path": relative(path), "name": path.name, "total": len(entries),
             "engine": engine, "engineError": engine_error,
             "offset": offset, "limit": limit, "sort": sort_by, "descending": descending,
@@ -227,17 +228,21 @@ def _index_worker(scope: str, generation: int) -> None:
         stack = [root]
         batch = []
         totals = {}
+        parents = {}
         native_enabled = rf2_native.SERVICE.is_file() and os.access(rf2_native.SERVICE, os.X_OK)
         with _JOB_LOCK:
             _JOB["engine"] = "rf2-native-metadata" if native_enabled else "python"
         root_item = _entry(root)
+        db.execute("BEGIN IMMEDIATE")
         db.execute("""INSERT INTO nodes(path,name,parent,kind,bytes,allocated,tree_allocated,modified,generation)
-            VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET generation=excluded.generation""",
+            VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET
+            name=excluded.name,parent=excluded.parent,kind=excluded.kind,bytes=NULL,allocated=NULL,
+            tree_allocated=NULL,modified=excluded.modified,generation=excluded.generation""",
             (relative(root), root_item["name"], relative(root.parent) if root != HOME else "",
              "folder", None, None, None, root_item["modified"], generation))
-        db.commit()
         while stack:
             folder = stack.pop()
+            folder_path = relative(folder)
             if folder.is_symlink():
                 raise OSError("Folder became a symbolic link during indexing")
             try:
@@ -261,39 +266,36 @@ def _index_worker(scope: str, generation: int) -> None:
             except (OSError, PermissionError) as exc:
                 raise OSError(f"Index stopped at {relative(folder)}: {exc}") from exc
             for item in children:
-                try:
-                    p = folder / item["name"]
-                    batch.append((item["path"], item["name"], relative(folder),
-                                  item["kind"], item["bytes"], item["allocated"], None,
-                                  item["modified"], generation))
-                    if item["kind"] == "folder":
-                        stack.append(p)
-                    elif item["kind"] == "file":
-                        ancestor = folder
-                        while ancestor == root or root in ancestor.parents:
-                            key = relative(ancestor)
-                            totals[key] = totals.get(key, 0) + (item["allocated"] or 0)
-                            ancestor = ancestor.parent
-                except (OSError, PermissionError, ValueError):
-                    continue
+                batch.append((item["path"], item["name"], folder_path,
+                              item["kind"], item["bytes"], item["allocated"], None,
+                              item["modified"], generation))
+                if item["kind"] == "folder":
+                    parents[item["path"]] = folder_path
+                    stack.append(folder / item["name"])
+                elif item["kind"] == "file":
+                    totals[folder_path] = totals.get(folder_path, 0) + (item["allocated"] or 0)
             if len(batch) >= 500 or not stack:
                 db.executemany("""INSERT INTO nodes(path,name,parent,kind,bytes,allocated,tree_allocated,modified,generation)
                     VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(path) DO UPDATE SET
                     name=excluded.name,parent=excluded.parent,kind=excluded.kind,
                     bytes=excluded.bytes,allocated=excluded.allocated,tree_allocated=excluded.tree_allocated,
                     modified=excluded.modified,generation=excluded.generation""", batch)
-                db.commit()
                 with _JOB_LOCK:
                     _JOB["seen"] += len(batch)
                 batch.clear()
-        # Prune only the selected subtree after its replacement scan completed.
+        # Publish totals and prune only when the entire replacement scan succeeds.
+        for child, parent in reversed(parents.items()):
+            totals[parent] = totals.get(parent, 0) + totals.get(child, 0)
         db.execute("UPDATE nodes SET tree_allocated=0 WHERE generation=? AND kind='folder'", (generation,))
-        db.executemany("UPDATE nodes SET tree_allocated=? WHERE path=? AND kind='folder'",
+        db.executemany("UPDATE nodes SET tree_allocated=? WHERE path=?",
                        ((value, key) for key, value in totals.items()))
         if scope:
-            prefix = scope.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
-            db.execute("DELETE FROM nodes WHERE (path=? OR path LIKE ? ESCAPE '\\') AND generation<>?",
-                       (scope, prefix + "/%", generation))
+            # Under binary collation the slash-prefixed descendant range ends before "0".
+            db.execute("DELETE FROM nodes WHERE path>=? AND path<? AND generation<>?",
+                       (scope + "/", scope + "0", generation))
+            ancestors = list(root.parents)[:len(Path(scope).parts)]
+            db.executemany("UPDATE nodes SET tree_allocated=NULL WHERE path=? AND kind='folder'",
+                           ((relative(parent),) for parent in ancestors))
         else:
             db.execute("DELETE FROM nodes WHERE generation<>?", (generation,))
         with _JOB_LOCK:
@@ -377,7 +379,7 @@ def _native_index_worker(scope: str, generation: int) -> None:
             _JOB["ended"] = int(time.time() * 1000)
 
 
-def start_index(scope: str) -> dict:
+def start_index(scope: str, *, include_totals: bool = True) -> dict:
     global _JOB
     path = safe_path(scope)
     if not path.is_dir():
@@ -395,28 +397,31 @@ def start_index(scope: str) -> dict:
         worker = threading.Thread(target=_native_index_worker if native_ready else _index_worker,
                                   args=(relative(path), generation), daemon=True)
         worker.start()
-    return index_status()
+    return index_status(include_totals=include_totals)
 
 
-def index_status() -> dict:
+def index_status(*, include_totals: bool = True) -> dict:
     with _JOB_LOCK:
         job = dict(_JOB)
     try:
         db = connect()
-        row = db.execute("SELECT COUNT(*) AS count, COALESCE(SUM(allocated),0) AS bytes FROM nodes").fetchone()
-        last = db.execute("SELECT scope,started,ended,seen,engine FROM scan_runs ORDER BY ended DESC LIMIT 1").fetchone()
+        if include_totals:
+            row = db.execute("SELECT COUNT(*) AS count, COALESCE(SUM(allocated),0) AS bytes FROM nodes").fetchone()
+            job.update({"indexed": row["count"], "indexedAllocated": row["bytes"]})
+        last = db.execute("SELECT scope,started,ended,seen,engine FROM scan_runs ORDER BY ended DESC, generation DESC LIMIT 1").fetchone()
         db.close()
-        job.update({"indexed": row["count"], "indexedAllocated": row["bytes"],
-                    "lastScan": dict(last) if last else None})
+        job["lastScan"] = dict(last) if last else None
     except sqlite3.Error as exc:
         job["error"] = str(exc)
     return job
 
 
-def search(query: str, limit: int = 60) -> dict:
+def search(query: str, limit: int = 60, *, include_totals: bool = True) -> dict:
+    if not isinstance(query, str) or len(query) > 512:
+        raise ValueError("Search must be 512 characters or fewer")
     words = re.findall(r"[\w-]+", query, re.UNICODE)
     if not words or len(query) < 2:
-        return {"query": query, "results": [], "coverage": index_status()}
+        return {"query": query, "results": [], "coverage": index_status(include_totals=include_totals)}
     expression = " ".join('"' + word.replace('"', '') + '"*' for word in words[:6])
     db = connect()
     try:
@@ -425,6 +430,6 @@ def search(query: str, limit: int = 60) -> dict:
             WHERE nodes_fts MATCH ? ORDER BY bm25(nodes_fts) LIMIT ?""",
             (expression, min(max(limit, 1), 100))).fetchall()
         return {"query": query, "results": [dict(row) for row in rows],
-                "coverage": index_status()}
+                "coverage": index_status(include_totals=include_totals)}
     finally:
         db.close()

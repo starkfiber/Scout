@@ -9,7 +9,9 @@ import threading
 import time
 from pathlib import Path
 
-SERVICE = Path(__file__).resolve().parent.parent / "rf2" / "bin" / "scout-dir-service"
+BIN_DIR = Path(os.environ.get("SCOUT_RF2_BIN") or
+               Path(__file__).resolve().parent.parent / "rf2" / "bin").resolve()
+SERVICE = BIN_DIR / "scout-dir-service"
 _LOCKS = {"interactive": threading.Lock(), "index": threading.Lock()}
 _PROCS: dict[str, subprocess.Popen] = {}
 _MAX_BYTES = 64 * 1024 * 1024

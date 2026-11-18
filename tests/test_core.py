@@ -4,6 +4,7 @@ import unittest
 import os
 from pathlib import Path
 from unittest.mock import patch
+from contextlib import closing
 
 from scout import core, mcp, rf2_native
 
@@ -165,33 +166,64 @@ class ScoutCoreTests(unittest.TestCase):
         self.assertIsNone(status["error"])
         self.assertEqual(native_rows, rows())
 
-    def test_failed_subtree_scan_keeps_last_index(self):
-        core.start_index("project")
-        for _ in range(100):
-            if not core.index_status()["running"]:
-                break
+    def _scan(self, scope):
+        core.start_index(scope)
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            status = core.index_status()
+            if not status["running"]:
+                return status
             time.sleep(.02)
-        self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
-        previous = rf2_native.SERVICE
+        self.fail("Index did not finish")
+
+    def test_failed_subtree_scan_keeps_last_index(self):
+        self.assertIsNone(self._scan("project")["error"])
         real_scandir = os.scandir
+        for i in range(510):
+            (self.root / "project" / f"pending-{i}.txt").touch()
+
         def fail_docs(path):
             if Path(path) == self.root / "project" / "docs":
                 raise PermissionError("fixture denied")
             return real_scandir(path)
-        try:
-            rf2_native._stop()
-            rf2_native.SERVICE = self.root / "missing-service"
-            with patch.object(core.os, "scandir", side_effect=fail_docs):
-                core.start_index("project")
-                for _ in range(100):
-                    status = core.index_status()
-                    if not status["running"]:
-                        break
-                    time.sleep(.02)
-        finally:
-            rf2_native.SERVICE = previous
+
+        with patch.object(rf2_native, "SERVICE", self.root / "missing-service"), \
+             patch.object(core.os, "scandir", side_effect=fail_docs):
+            status = self._scan("project")
         self.assertIn("fixture denied", status["error"])
+        self.assertGreaterEqual(status["seen"], 500)
+        self.assertEqual(core.search("pending")["results"], [])
         self.assertEqual(core.search("report")["results"][0]["path"], "project/docs/report.txt")
+
+    def test_scoped_refresh_preserves_neighbors_and_invalidates_ancestors(self):
+        self.assertIsNone(self._scan("project")["error"])
+        for engine in ("default", "python"):
+            with self.subTest(engine=engine):
+                with closing(core.connect()) as db, db:
+                    # Simulate an indexed sibling on a case-sensitive filesystem and
+                    # a literal prefix sibling. Neither belongs to the refresh scope.
+                    for sibling in ("project/DOCS/remain", "project/docs2/remain"):
+                        db.execute("""INSERT OR IGNORE INTO nodes(path,name,parent,kind,generation)
+                            VALUES(?,?,?,?,0)""", (sibling, "remain", sibling.rsplit("/", 1)[0], "file"))
+                with patch.object(core, "RF2_INDEX", core.RF2_INDEX if engine == "default" else
+                                  self.root / "missing-worker"), \
+                     patch.object(rf2_native, "SERVICE", rf2_native.SERVICE if engine == "default" else
+                                  self.root / "missing-service"):
+                    self.assertIsNone(self._scan("project/docs")["error"])
+                with closing(core.connect()) as db:
+                    self.assertIsNone(db.execute("SELECT tree_allocated FROM nodes WHERE path='project'").fetchone()[0])
+                    self.assertEqual(db.execute("SELECT COUNT(*) FROM nodes WHERE name='remain'").fetchone()[0], 2)
+                    self.assertGreaterEqual(db.execute("SELECT tree_allocated FROM nodes WHERE path='project/docs'").fetchone()[0], 0)
+
+    def test_light_search_retains_results_and_coverage(self):
+        self.assertIsNone(self._scan("project")["error"])
+        full = core.search("report")
+        lite = core.search("report", include_totals=False)
+        self.assertEqual(full["results"], lite["results"])
+        self.assertEqual(full["coverage"]["lastScan"], lite["coverage"]["lastScan"])
+        self.assertNotIn("indexed", lite["coverage"])
+        with self.assertRaises(ValueError):
+            core.search("a" * 513)
 
     def test_mcp_metadata_only(self):
         response = mcp.handle({"jsonrpc": "2.0", "id": 1, "method": "tools/call",

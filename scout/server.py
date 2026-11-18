@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 import os
 import secrets
+import sqlite3
 import subprocess
 import threading
 import time
@@ -75,16 +76,21 @@ class Handler(BaseHTTPRequestHandler):
         return host in ("127.0.0.1", "localhost") and (
             not origin or origin in (f"http://127.0.0.1:{PORT}", f"http://localhost:{PORT}"))
 
-    def _send(self, payload: bytes, mime: str, status: int = 200) -> None:
+    def _send(self, payload: bytes, mime: str, status: int = 200,
+              *, etag: str | None = None) -> None:
         self.send_response(status)
         self.send_header("Content-Type", mime)
-        self.send_header("Cache-Control", "no-store")
+        self.send_header("Cache-Control", "private, no-cache" if etag else "no-store")
+        if etag:
+            self.send_header("ETag", etag)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Content-Security-Policy",
                          "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; object-src 'none'; base-uri 'none'")
-        self.send_header("Content-Length", str(len(payload)))
+        if status != 304:
+            self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
-        self.wfile.write(payload)
+        if status != 304:
+            self.wfile.write(payload)
 
     def _json(self, value: dict, status: int = 200) -> None:
         self._send(json.dumps(value, separators=(",", ":")).encode(), "application/json", status)
@@ -92,9 +98,9 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         if not self._allowed():
             return self._json({"error": "Local access only"}, 403)
-        parsed = urlsplit(self.path)
-        query = parse_qs(parsed.query)
         try:
+            parsed = urlsplit(self.path)
+            query = parse_qs(parsed.query, max_num_fields=16)
             if parsed.path == "/api/overview":
                 return self._json({"capacity": core.capacity(), "home": str(core.HOME),
                                    "index": core.index_status(), "session": SESSION})
@@ -109,7 +115,8 @@ class Handler(BaseHTTPRequestHandler):
             if parsed.path == "/api/stat":
                 return self._json(core.stat_path(query.get("path", [""])[0]))
             if parsed.path == "/api/search":
-                return self._json(core.search(query.get("q", [""])[0]))
+                return self._json(core.search(query.get("q", [""])[0],
+                                                   include_totals=query.get("totals") != ["0"]))
             if parsed.path == "/api/activity":
                 with SAMPLE_LOCK:
                     return self._json({"samples": list(SAMPLES)})
@@ -124,7 +131,16 @@ class Handler(BaseHTTPRequestHandler):
                         "ssd.webp": "image/webp", "ssd-base.webp": "image/webp", "ssd-data.webp": "image/webp"}[asset]
             else:
                 return self._json({"error": "Not found"}, 404)
-            return self._send((ASSETS / asset).read_bytes(), mime)
+            path = ASSETS / asset
+            if asset == "index.html":
+                return self._send(path.read_bytes(), mime)
+            metadata = path.stat()
+            etag = f'W/"{metadata.st_mtime_ns:x}-{metadata.st_size:x}"'
+            if self.headers.get("If-None-Match") == etag:
+                return self._send(b"", mime, 304, etag=etag)
+            return self._send(path.read_bytes(), mime, etag=etag)
+        except (sqlite3.Error, subprocess.SubprocessError):
+            return self._json({"error": "Local data is unavailable. Try again."}, 503)
         except (ValueError, OSError) as exc:
             return self._json({"error": str(exc)}, 400)
 
@@ -139,8 +155,11 @@ class Handler(BaseHTTPRequestHandler):
             return self._json({"error": "Request too large"}, 413)
         try:
             body = json.loads(self.rfile.read(length) or b"{}")
+            if not isinstance(body, dict):
+                raise ValueError("Request body must be an object")
             if self.path == "/api/index":
-                return self._json(core.start_index(body.get("path", "")), 202)
+                return self._json(core.start_index(body.get("path", ""),
+                                                        include_totals=body.get("totals") is not False), 202)
             if self.path == "/api/reveal":
                 path = core.safe_path(body.get("path", ""))
                 if not path.exists():
@@ -149,7 +168,7 @@ class Handler(BaseHTTPRequestHandler):
                                  stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
                 return self._json({"revealed": core.relative(path)})
             return self._json({"error": "Not found"}, 404)
-        except (ValueError, OSError, json.JSONDecodeError) as exc:
+        except (ValueError, OSError) as exc:
             return self._json({"error": str(exc)}, 400)
 
     def log_message(self, *_args) -> None:

@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <time.h>
 #include <unistd.h>
 
 /* SQLite persistence bridge for the trusted RF2 directory/metadata service.
@@ -216,7 +217,7 @@ static int finish_index(const char *scope, int64_t started) {
     if (!reset_ok) return 0;
     const char *totals_sql =
         "WITH RECURSIVE walk(path,bytes) AS ("
-        " SELECT parent,allocated FROM nodes WHERE generation=? AND kind='file' AND allocated IS NOT NULL"
+        " SELECT parent,SUM(allocated) FROM nodes WHERE generation=? AND kind='file' AND allocated IS NOT NULL GROUP BY parent"
         " UNION ALL SELECT n.parent,walk.bytes FROM walk JOIN nodes n ON n.path=walk.path WHERE walk.path<>?"
         ") SELECT path,SUM(bytes) FROM walk GROUP BY path";
     if (!sql_prepare(&totals_query, totals_sql)) return 0;
@@ -233,20 +234,42 @@ static int finish_index(const char *scope, int64_t started) {
     }
     if (step != SQLITE_DONE) { fail_sql("sum folder totals"); return 0; }
     sqlite3_stmt *prune = NULL;
-    const char *prune_sql = "DELETE FROM nodes WHERE generation<>? AND (?='' OR path=? OR substr(path,1,length(?)+1)=?||'/')";
+    const char *prune_sql = *scope
+        ? "DELETE FROM nodes WHERE path>=?2||'/' AND path<?2||'0' AND generation<>?1"
+        : "DELETE FROM nodes WHERE generation<>?1";
     if (!sql_prepare(&prune, prune_sql)) return 0;
     sqlite3_bind_int64(prune, 1, (sqlite3_int64)generation);
-    for (int i = 2; i <= 5; i++) sqlite3_bind_text(prune, i, scope, -1, SQLITE_TRANSIENT);
+    if (*scope) sqlite3_bind_text(prune, 2, scope, -1, SQLITE_TRANSIENT);
     int ok = sqlite3_step(prune) == SQLITE_DONE;
     if (!ok) fail_sql("prune old generation");
     sqlite3_finalize(prune);
     if (!ok) return 0;
+    if (*scope) {
+        sqlite3_stmt *invalidate = NULL;
+        if (!sql_prepare(&invalidate, "UPDATE nodes SET tree_allocated=NULL WHERE path=? AND kind='folder'")) return 0;
+        const char *end = scope + strlen(scope);
+        while (end > scope) {
+            do { end--; } while (end > scope && *end != '/');
+            sqlite3_bind_text(invalidate, 1, scope, (int)(end - scope), SQLITE_TRANSIENT);
+            ok = sqlite3_step(invalidate) == SQLITE_DONE;
+            if (!ok) { fail_sql("invalidate ancestor totals"); break; }
+            sqlite3_reset(invalidate);
+        }
+        sqlite3_finalize(invalidate);
+        if (!ok) return 0;
+    }
+    struct timespec finished;
+    if (clock_gettime(CLOCK_REALTIME, &finished) != 0) {
+        fail("Could not record scan completion time");
+        return 0;
+    }
     sqlite3_stmt *run = NULL;
-    if (!sql_prepare(&run, "INSERT INTO scan_runs(generation,scope,started,ended,seen,engine) VALUES(?,?,?,CAST(strftime('%s','now') AS INTEGER)*1000,?,'rf2-native-index-bridge')")) return 0;
+    if (!sql_prepare(&run, "INSERT INTO scan_runs(generation,scope,started,ended,seen,engine) VALUES(?,?,?,?,?,'rf2-native-index-bridge')")) return 0;
     sqlite3_bind_int64(run, 1, (sqlite3_int64)generation);
     sqlite3_bind_text(run, 2, scope, -1, SQLITE_TRANSIENT);
     sqlite3_bind_int64(run, 3, started);
-    sqlite3_bind_int64(run, 4, (sqlite3_int64)seen);
+    sqlite3_bind_int64(run, 4, as_millis(finished.tv_sec, finished.tv_nsec));
+    sqlite3_bind_int64(run, 5, (sqlite3_int64)seen);
     ok = sqlite3_step(run) == SQLITE_DONE;
     if (!ok) fail_sql("record completed scan");
     sqlite3_finalize(run);
